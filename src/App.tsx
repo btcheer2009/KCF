@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Calendar, MapPin, ArrowUpRight, Menu, X, Trophy, ShieldCheck, Award, 
   Activity, Sparkles, TrendingUp, Heart, Info, ArrowRight, CheckCircle, Flame,
-  Database, Settings, Plus, Trash2, Edit, Inbox, Users, Megaphone, ShieldAlert, RefreshCw,
+  Database, Settings, Plus, Trash2, Edit, Inbox, Users, User, Megaphone, ShieldAlert, RefreshCw,
   Image, Lock, UserCheck, Upload, Type
 } from 'lucide-react';
 
@@ -33,7 +33,7 @@ const DEFAULT_IMAGES = {
 const DEFAULT_CATEGORY_HEADERS = {
   schedule: {
     badge: 'KCF TIMELINE REGISTRY',
-    title: '2026 하반기 주요 일정 안내',
+    title: '한국치어리딩협회 일정',
     desc: '전국의 팀들과 지도자들을 위해 다가오는 KCF 공식 대회, 자격증 연수, 그리고 국가대표 선발전 상세 일정을 전해드립니다.'
   },
   competitions: {
@@ -92,6 +92,43 @@ export default function App() {
   const [teams, setTeams] = useState<CheerTeam[]>([]);
   const [inquiries, setInquiries] = useState<InquirySubmission[]>([]);
   const [events, setEvents] = useState<KCFEvent[]>([]);
+  const [scheduleCategories, setScheduleCategories] = useState<{ id: string; label: string }[]>(() => {
+    const saved = localStorage.getItem('kcf_schedule_categories');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [
+      { id: 'domestic', label: '국내 대회' },
+      { id: 'international', label: '국제 대회' },
+      { id: 'education', label: '지도자 교육' },
+      { id: 'selection', label: '국가대표 선발' },
+      { id: 'seminar', label: '정기 세미나' }
+    ];
+  });
+  const [teamCategories, setTeamCategories] = useState<{ id: string; label: string }[]>(() => {
+    const saved = localStorage.getItem('kcf_team_categories');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [
+      { id: 'allstar', label: '올스타 치어 (Allstar)' },
+      { id: 'university', label: '대학 치어 동아리 (University)' },
+      { id: 'club', label: '클럽 치어 동단 (Club)' }
+    ];
+  });
+  const [teamRegions, setTeamRegions] = useState<string[]>(() => {
+    const saved = localStorage.getItem('kcf_team_regions');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return ['서울', '경기', '부산', '대구', '강원', '인천', '충청', '전라'];
+  });
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [associationInfo, setAssociationInfo] = useState<AssociationInfo>(INITIAL_ASSOCIATION_INFO);
   const [competitions, setCompetitions] = useState<CompetitionPost[]>([]);
@@ -131,6 +168,7 @@ export default function App() {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [showAdminDashboardModal, setShowAdminDashboardModal] = useState(false);
   const [adminActiveTab, setAdminActiveTab] = useState<'stats' | 'notices' | 'teams' | 'inquiries' | 'schedules' | 'images' | 'athletes' | 'association' | 'competitions' | 'headers'>('stats');
+  const [inquiryFilter, setInquiryFilter] = useState<'all' | 'contact' | 'team_reg'>('all');
 
   // Admin Association Info Form state
   const [assocOfficeName, setAssocOfficeName] = useState('');
@@ -145,7 +183,7 @@ export default function App() {
   // Admin schedules form state
   const [newEvTitle, setNewEvTitle] = useState('');
   const [newEvDate, setNewEvDate] = useState('');
-  const [newEvType, setNewEvType] = useState<'competition' | 'education' | 'selection' | 'seminar'>('competition');
+  const [newEvType, setNewEvType] = useState<string>('domestic');
   const [newEvLocation, setNewEvLocation] = useState('');
   const [newEvDescription, setNewEvDescription] = useState('');
   const [newEvStatus, setNewEvStatus] = useState<'upcoming' | 'ongoing' | 'completed'>('upcoming');
@@ -154,6 +192,12 @@ export default function App() {
   const [newEvStartDate, setNewEvStartDate] = useState('');
   const [newEvEndDate, setNewEvEndDate] = useState('');
   const [newEvIsRange, setNewEvIsRange] = useState(false);
+
+  // Admin schedules categories states
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editingCatLabel, setEditingCatLabel] = useState('');
+  const [newCatId, setNewCatId] = useState('');
+  const [newCatLabel, setNewCatLabel] = useState('');
   const [adminEditingComp, setAdminEditingComp] = useState<CompetitionPost | null>(null);
   const [showAddCompForm, setShowAddCompForm] = useState(false);
   const [newCompTitle, setNewCompTitle] = useState('');
@@ -166,14 +210,25 @@ export default function App() {
 
   // Admin Registered Teams Form state
   const [newTeamName, setNewTeamName] = useState('');
-  const [newTeamCategory, setNewTeamCategory] = useState<'allstar' | 'university' | 'club'>('allstar');
-  const [newTeamRegion, setNewTeamRegion] = useState('');
+  const [newTeamCategory, setNewTeamCategory] = useState<string>('allstar');
+  const [newTeamRegion, setNewTeamRegion] = useState<string>(() => teamRegions[0] || '서울');
   const [newTeamMemberCount, setNewTeamMemberCount] = useState<number>(15);
   const [newTeamCoach, setNewTeamCoach] = useState('');
   const [newTeamEstablished, setNewTeamEstablished] = useState('');
   const [newTeamDescription, setNewTeamDescription] = useState('');
   const [newTeamContact, setNewTeamContact] = useState('');
   const [showAddTeamForm, setShowAddTeamForm] = useState(false);
+
+  // Admin team categories states
+  const [editingTeamCatId, setEditingTeamCatId] = useState<string | null>(null);
+  const [editingTeamCatLabel, setEditingTeamCatLabel] = useState<string>('');
+  const [newTeamCatIdState, setNewTeamCatIdState] = useState<string>('');
+  const [newTeamCatLabelState, setNewTeamCatLabelState] = useState<string>('');
+
+  // Admin team regions states
+  const [editingTeamRegionIdx, setEditingTeamRegionIdx] = useState<number | null>(null);
+  const [editingTeamRegionValue, setEditingTeamRegionValue] = useState<string>('');
+  const [newTeamRegionValue, setNewTeamRegionValue] = useState<string>('');
 
   // Admin Athletes Form state
   const [newAthleteName, setNewAthleteName] = useState('');
@@ -185,7 +240,14 @@ export default function App() {
   const [newAthleteLevel, setNewAthleteLevel] = useState('Level 5 (최고급)');
   const [newAthleteStatus, setNewAthleteStatus] = useState<'정상등록' | '갱신필요' | '정지'>('정상등록');
   const [newAthleteValidUntil, setNewAthleteValidUntil] = useState('2027-02-28');
+  const [newAthleteImageUrl, setNewAthleteImageUrl] = useState('');
   const [showAddAthleteForm, setShowAddAthleteForm] = useState(false);
+
+  // Admin Editing states for inline modifications
+  const [editingAthleteId, setEditingAthleteId] = useState<string | null>(null);
+  const [editingAthleteData, setEditingAthleteData] = useState<Athlete | null>(null);
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [editingTeamData, setEditingTeamData] = useState<CheerTeam | null>(null);
 
   // Custom Confirmation Modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -286,7 +348,10 @@ export default function App() {
     const savedEvents = localStorage.getItem('kcf_events');
     if (savedEvents) {
       try {
-        setEvents(JSON.parse(savedEvents));
+        const parsed = JSON.parse(savedEvents);
+        const migrated = parsed.map((e: any) => e.type === 'competition' ? { ...e, type: 'domestic' } : e);
+        setEvents(migrated);
+        localStorage.setItem('kcf_events', JSON.stringify(migrated));
       } catch (e) {
         setEvents(EVENTS);
       }
@@ -311,7 +376,19 @@ export default function App() {
     const savedHeaders = localStorage.getItem('kcf_category_headers');
     if (savedHeaders) {
       try {
-        setCategoryHeaders(JSON.parse(savedHeaders));
+        const parsed = JSON.parse(savedHeaders);
+        if (parsed.schedule && (
+          parsed.schedule.title === '2026 하반기 주요일정' ||
+          parsed.schedule.title === '2026 하반기 주요일정 안내' ||
+          parsed.schedule.title === '하반기 주요일정 안내' ||
+          parsed.schedule.title.includes('하반기') ||
+          parsed.schedule.title.includes('주요일정') ||
+          !parsed.schedule.title
+        )) {
+          parsed.schedule.title = '한국치어리딩협회 일정';
+          localStorage.setItem('kcf_category_headers', JSON.stringify(parsed));
+        }
+        setCategoryHeaders(parsed);
       } catch (e) {
         setCategoryHeaders(DEFAULT_CATEGORY_HEADERS);
       }
@@ -335,7 +412,19 @@ export default function App() {
     const savedAthletes = localStorage.getItem('kcf_athletes');
     if (savedAthletes) {
       try {
-        setAthletes(JSON.parse(savedAthletes));
+        const parsed = JSON.parse(savedAthletes) as Athlete[];
+        let migrated = false;
+        const updated = parsed.map(ath => {
+          if (ath.name === '김민준') {
+            migrated = true;
+            return { ...ath, name: 'ooo' };
+          }
+          return ath;
+        });
+        if (migrated) {
+          localStorage.setItem('kcf_athletes', JSON.stringify(updated));
+        }
+        setAthletes(updated);
       } catch (e) {
         setAthletes(INITIAL_ATHLETES);
       }
@@ -440,20 +529,21 @@ export default function App() {
 
   const getEventBadgeColor = (type: string) => {
     switch (type) {
-      case 'competition': return 'bg-red-50 text-red-700 border border-red-200';
+      case 'domestic': return 'bg-rose-50 text-rose-700 border border-rose-200';
+      case 'international': return 'bg-amber-50 text-amber-700 border border-amber-200';
       case 'education': return 'bg-blue-50 text-blue-700 border border-blue-200';
       case 'selection': return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
-      default: return 'bg-purple-50 text-purple-700 border border-purple-200';
+      case 'seminar': return 'bg-purple-50 text-purple-700 border border-purple-200';
+      case 'competition': return 'bg-rose-50 text-rose-700 border border-rose-200';
+      default: return 'bg-zinc-50 text-zinc-700 border border-zinc-200';
     }
   };
 
   const getEventLabel = (type: string) => {
-    switch (type) {
-      case 'competition': return '전국 대회';
-      case 'education': return '지도자 교육';
-      case 'selection': return '국가대표 선발';
-      default: return '정기 세미나';
-    }
+    const found = scheduleCategories.find(c => c.id === type);
+    if (found) return found.label;
+    if (type === 'competition') return '국내 대회';
+    return type;
   };
 
   // Helper functions for Admin operations
@@ -609,6 +699,18 @@ export default function App() {
     localStorage.setItem('kcf_athletes', JSON.stringify(updated));
   };
 
+  const handleUpdateTeamFromAdmin = (updatedTeam: CheerTeam) => {
+    const updated = teams.map(t => t.id === updatedTeam.id ? updatedTeam : t);
+    setTeams(updated);
+    localStorage.setItem('kcf_teams', JSON.stringify(updated));
+  };
+
+  const handleUpdateAthleteFromAdmin = (updatedAthlete: Athlete) => {
+    const updated = athletes.map(a => a.id === updatedAthlete.id ? updatedAthlete : a);
+    setAthletes(updated);
+    localStorage.setItem('kcf_athletes', JSON.stringify(updated));
+  };
+
   const handleUpdateImage = (key: keyof typeof DEFAULT_IMAGES, url: string) => {
     const updated = { ...siteImages, [key]: url };
     setSiteImages(updated);
@@ -658,11 +760,42 @@ export default function App() {
       {/* 1. Header Navigation */}
       <nav className="w-full fixed top-0 left-0 z-50 h-16 bg-white/95 backdrop-blur-md border-b border-zinc-200/80 shadow-xs px-4 sm:px-6 lg:px-16 flex justify-between items-center transition-all duration-300">
         <a href="#" onClick={(e) => { e.preventDefault(); handleTabChange('home'); }} className="flex items-center gap-3.5 cursor-pointer hover:opacity-85 transition duration-200 shrink-0">
-          {/* Logo representation - Korean traditional blue/red flame */}
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-red-500 p-px flex items-center justify-center shadow-xs">
-            <div className="w-full h-full bg-white rounded-[10px] flex items-center justify-center">
-              <Flame className="w-4.5 h-4.5 text-blue-600 stroke-[2.5]" />
-            </div>
+          {/* Official KCF Logo - Stylized Cheerleader Figure */}
+          <div id="kcf-header-logo-container" className="w-10 h-10 flex items-center justify-center shrink-0">
+            <svg 
+              id="kcf-header-logo-svg"
+              viewBox="0 0 500 500" 
+              className="w-full h-full object-contain" 
+              fill="none" 
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              {/* Head */}
+              <circle cx="200" cy="70" r="28" fill="#14264b" />
+              
+              {/* Left Navy Swoop */}
+              <path 
+                d="M 72,143 C 105,123 155,140 188,165 C 150,230 90,360 2,490 C 25,430 115,280 135,215 C 137,208 127,192 110,180 C 95,168 85,155 72,143 Z" 
+                fill="#14264b" 
+              />
+              
+              {/* Top Right Red Swoop */}
+              <path 
+                d="M 188,165 C 235,125 310,65 390,5 C 335,70 260,155 208,210 C 193,190 189,175 188,165 Z" 
+                fill="#b61d22" 
+              />
+              
+              {/* Middle Right Red Swoop */}
+              <path 
+                d="M 208,210 C 265,190 375,165 498,158 C 420,175 340,210 286,242 C 245,232 220,222 208,210 Z" 
+                fill="#b61d22" 
+              />
+              
+              {/* Bottom Navy Loop (Merged into a single seamless vector path to prevent any broken lines) */}
+              <path 
+                d="M 208,210 C 185,255 178,300 181,320 C 181,365 210,440 450,430 C 375,465 270,470 210,400 C 175,360 178,335 181,320 C 185,340 220,310 286,242 C 240,232 220,222 208,210 Z" 
+                fill="#14264b" 
+              />
+            </svg>
           </div>
           <div className="flex flex-col text-left">
             <div className="text-sm sm:text-base font-extrabold tracking-tight font-serif text-zinc-950 flex items-center gap-1.5">
@@ -868,7 +1001,7 @@ export default function App() {
           >
             <div className="flex flex-col space-y-5 text-base font-semibold text-slate-900 tracking-tight pl-4">
               <button onClick={() => { handleTabChange('home'); setMobileMenuOpen(false); }} className={`text-left hover:text-blue-700 transition cursor-pointer ${currentTab === 'home' ? 'text-blue-600 font-bold' : ''}`}>KCF 소개 / 핵심 약속 (About)</button>
-              <button onClick={() => { handleTabChange('schedule'); setMobileMenuOpen(false); }} className={`text-left hover:text-blue-700 transition cursor-pointer ${currentTab === 'schedule' ? 'text-blue-600 font-bold' : ''}`}>하반기 주요 일정 (Schedule)</button>
+              <button onClick={() => { handleTabChange('schedule'); setMobileMenuOpen(false); }} className={`text-left hover:text-blue-700 transition cursor-pointer ${currentTab === 'schedule' ? 'text-blue-600 font-bold' : ''}`}>한국치어리딩협회 일정 (Schedule)</button>
               <button onClick={() => { handleTabChange('competitions'); setMobileMenuOpen(false); }} className={`text-left hover:text-blue-700 transition cursor-pointer ${currentTab === 'competitions' ? 'text-blue-600 font-bold' : ''}`}>대회 정보 (Competitions)</button>
               <button onClick={() => { handleTabChange('teams'); setMobileMenuOpen(false); }} className={`text-left hover:text-blue-700 transition cursor-pointer ${currentTab === 'teams' ? 'text-blue-600 font-bold' : ''}`}>전국 가입팀 검색 (Teams)</button>
               <button onClick={() => { handleTabChange('athletes'); setMobileMenuOpen(false); }} className={`text-left hover:text-blue-700 transition cursor-pointer ${currentTab === 'athletes' ? 'text-blue-600 font-bold' : ''}`}>공인선수 조회 (Athletes)</button>
@@ -952,7 +1085,7 @@ export default function App() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 w-full">
                     {[
                       { id: 'home', label: '협회 소개', desc: 'KCF 약속 & 비전', icon: Info, color: 'text-blue-600', bg: 'bg-blue-50/60 border-blue-100 hover:bg-blue-100/40' },
-                      { id: 'schedule', label: '일정 안내', desc: '하반기 주요 일정', icon: Calendar, color: 'text-emerald-600', bg: 'bg-emerald-50/60 border-emerald-100 hover:bg-emerald-100/40' },
+                      { id: 'schedule', label: '일정 안내', desc: '한국치어리딩협회 일정', icon: Calendar, color: 'text-emerald-600', bg: 'bg-emerald-50/60 border-emerald-100 hover:bg-emerald-100/40' },
                       { id: 'competitions', label: '대회 정보', desc: '전국 대회 & 규정', icon: Trophy, color: 'text-amber-600', bg: 'bg-amber-50/60 border-amber-100 hover:bg-amber-100/40' },
                       { id: 'teams', label: '가입팀 목록', desc: '등록 클럽 & 아카데미', icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-50/60 border-indigo-100 hover:bg-indigo-100/40' },
                       { id: 'athletes', label: '공인선수 조회', desc: 'KCF 등록 선수', icon: UserCheck, color: 'text-rose-600', bg: 'bg-rose-50/60 border-rose-100 hover:bg-rose-100/40' },
@@ -988,24 +1121,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Desktop floating statistics badge */}
-                <div className="absolute right-6 lg:right-16 top-48 z-20 hidden lg:block max-w-xs bg-white/90 backdrop-blur-md rounded-3xl p-6 border border-zinc-200/60 shadow-[0_20px_50px_rgba(0,0,0,0.04)] text-zinc-900">
-                  <div className="rounded-2xl overflow-hidden mb-4 h-32 bg-cover bg-center border border-zinc-100" style={{ backgroundImage: `url('${siteImages.badgeImg}')` }}></div>
-                  <p className="text-[11px] text-zinc-500 font-normal leading-relaxed mb-4">
-                    전국의 공인된 아카데미 및 지부 연합팀들이 협회의 안전 보조 규정과 투명한 지원 아래 국가대표의 꿈을 키우고 있습니다.
-                  </p>
-                  
-                  <div className="grid grid-cols-2 gap-4 border-t border-zinc-100 pt-4">
-                    <div>
-                      <span className="text-2xl font-serif font-bold text-blue-600">{athleteCount.toLocaleString()}+</span>
-                      <span className="text-[9px] uppercase tracking-wider text-zinc-400 block mt-0.5 font-bold">선수 & 동호인</span>
-                    </div>
-                    <div>
-                      <span className="text-2xl font-serif font-bold text-red-500">{teamCount}+</span>
-                      <span className="text-[9px] uppercase tracking-wider text-zinc-400 block mt-0.5 font-bold">공식 가입팀</span>
-                    </div>
-                  </div>
-                </div>
+
               </header>
 
               {/* 3. About KCF Section */}
@@ -1115,7 +1231,7 @@ export default function App() {
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center mb-10 pb-6 border-b border-zinc-150">
                   {/* Event Filter tabs */}
                   <div className="flex flex-wrap gap-1 p-1 bg-zinc-100 rounded-xl">
-                    {['all', 'competition', 'education', 'selection', 'seminar'].map((filter) => (
+                    {['all', ...scheduleCategories.map(c => c.id)].map((filter) => (
                       <button
                         id={`filter-event-btn-${filter}`}
                         key={filter}
@@ -1327,11 +1443,16 @@ export default function App() {
                 <TeamRegistry 
                   teams={teams} 
                   setTeams={setTeams} 
+                  inquiries={inquiries}
+                  setInquiries={setInquiries}
+                  teamCategories={teamCategories}
+                  teamRegions={teamRegions}
                   isAdminMode={false} 
                   showConfirm={showConfirm} 
                   headerBadge={categoryHeaders.teams.badge}
                   headerTitle={categoryHeaders.teams.title}
                   headerDesc={categoryHeaders.teams.desc}
+                  showToast={showToast}
                 />
               </section>
             </motion.div>
@@ -1419,10 +1540,43 @@ export default function App() {
           {/* Logo & Slogan Column */}
           <div className="md:col-span-4 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-700 via-white to-red-600 flex items-center justify-center shadow-inner">
-                <Flame className="w-4 h-4 text-white stroke-[2.5]" />
+              <div id="kcf-footer-logo-container" className="w-10 h-10 flex items-center justify-center bg-white rounded-xl p-1.5 shadow-sm shrink-0">
+                <svg 
+                  id="kcf-footer-logo-svg"
+                  viewBox="0 0 500 500" 
+                  className="w-full h-full object-contain" 
+                  fill="none" 
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  {/* Head */}
+                  <circle cx="200" cy="70" r="28" fill="#14264b" />
+                  
+                  {/* Left Navy Swoop */}
+                  <path 
+                    d="M 72,143 C 105,123 155,140 188,165 C 150,230 90,360 2,490 C 25,430 115,280 135,215 C 137,208 127,192 110,180 C 95,168 85,155 72,143 Z" 
+                    fill="#14264b" 
+                  />
+                  
+                  {/* Top Right Red Swoop */}
+                  <path 
+                    d="M 188,165 C 235,125 310,65 390,5 C 335,70 260,155 208,210 C 193,190 189,175 188,165 Z" 
+                    fill="#b61d22" 
+                  />
+                  
+                  {/* Middle Right Red Swoop */}
+                  <path 
+                    d="M 208,210 C 265,190 375,165 498,158 C 420,175 340,210 286,242 C 245,232 220,222 208,210 Z" 
+                    fill="#b61d22" 
+                  />
+                  
+                  {/* Bottom Navy Loop */}
+                  <path 
+                    d="M 208,210 C 185,255 178,300 181,320 C 181,365 210,440 450,430 C 375,465 270,470 210,400 C 175,360 178,335 181,320 C 185,340 220,310 286,242 C 240,232 220,222 208,210 Z" 
+                    fill="#14264b" 
+                  />
+                </svg>
               </div>
-              <div className="text-xl font-extrabold tracking-tight font-serif text-white">KCF.</div>
+              <div className="text-xl font-extrabold tracking-tight font-serif text-white">KCF</div>
             </div>
             
             <p className="text-[11px] leading-relaxed text-slate-400 max-w-xs">
@@ -1516,7 +1670,7 @@ export default function App() {
               initial={{ scale: 0.95, y: 30, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.95, y: 30, opacity: 0 }}
-              className="relative bg-white border border-zinc-200 rounded-3xl p-6 md:p-8 max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl z-10 flex flex-col"
+              className="relative bg-white border border-zinc-200 rounded-3xl p-5 md:p-8 max-w-7xl w-full mx-4 md:mx-8 max-h-[92vh] overflow-hidden shadow-2xl z-10 flex flex-col"
             >
               {/* Close Button */}
               <button
@@ -1542,7 +1696,7 @@ export default function App() {
               </div>
 
               {/* Navigation Tabs */}
-              <div className="flex gap-1.5 p-1 bg-zinc-100 rounded-2xl mb-6 w-full overflow-x-auto">
+              <div className="flex gap-1.5 p-1.5 bg-zinc-100 rounded-2xl mb-6 w-full overflow-x-auto no-scrollbar scroll-smooth">
                 {[
                   { id: 'stats', label: '종합 요약', icon: Activity },
                   { id: 'notices', label: '공지 관리', icon: Megaphone },
@@ -1739,8 +1893,8 @@ export default function App() {
                       )}
                     </AnimatePresence>
 
-                    <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-                      <table className="w-full text-xs text-left text-zinc-600">
+                    <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-sm overflow-x-auto">
+                      <table className="w-full text-xs text-left text-zinc-600 min-w-[700px]">
                         <thead className="bg-zinc-50 border-b border-zinc-200 text-zinc-900 uppercase font-bold text-[11px]">
                           <tr>
                             <th className="px-4 py-3">카테고리</th>
@@ -1806,8 +1960,343 @@ export default function App() {
 
                 {/* 3. Team Directory Manager Panel */}
                 {adminActiveTab === 'teams' && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
+                  <div className="space-y-6">
+                    {/* Team Categories Editor Box */}
+                    <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                      <div className="flex justify-between items-center border-b border-zinc-200 pb-3">
+                        <div>
+                          <h5 className="text-xs font-bold text-zinc-950 flex items-center gap-1.5">
+                            <Trophy className="w-3.5 h-3.5 text-zinc-500" />
+                            가입팀 종목(카테고리) 목록 설정 및 관리
+                          </h5>
+                          <p className="text-[10px] text-zinc-400 mt-0.5">등록팀의 하위 종목분류를 추가, 수정, 삭제하고 실시간으로 연동시킵니다.</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Categories List */}
+                        <div className="space-y-2">
+                          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">현재 등록된 종목 목록</div>
+                          <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                            {teamCategories.map((cat) => (
+                              <div key={cat.id} className="flex items-center justify-between bg-white border border-zinc-200 rounded-xl px-3 py-2">
+                                {editingTeamCatId === cat.id ? (
+                                  <div className="flex items-center gap-1.5 w-full">
+                                    <input
+                                      type="text"
+                                      value={editingTeamCatLabel}
+                                      onChange={(e) => setEditingTeamCatLabel(e.target.value)}
+                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-800 w-full focus:outline-none focus:border-zinc-950 font-semibold"
+                                      placeholder="종목명 입력"
+                                      autoFocus
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!editingTeamCatLabel.trim()) {
+                                          showToast('이름을 입력해 주세요.', 'error');
+                                          return;
+                                        }
+                                        const updated = teamCategories.map(c => c.id === cat.id ? { ...c, label: editingTeamCatLabel.trim() } : c);
+                                        setTeamCategories(updated);
+                                        localStorage.setItem('kcf_team_categories', JSON.stringify(updated));
+                                        setEditingTeamCatId(null);
+                                        showToast('종목명이 성공적으로 변경되었습니다.', 'success');
+                                      }}
+                                      className="bg-zinc-900 text-white hover:bg-zinc-800 font-bold px-2.5 py-1 rounded-lg transition shrink-0 cursor-pointer text-[10px]"
+                                    >
+                                      저장
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingTeamCatId(null)}
+                                      className="bg-zinc-100 hover:bg-zinc-200 text-zinc-600 font-bold px-2 py-1 rounded-lg transition shrink-0 cursor-pointer text-[10px]"
+                                    >
+                                      취소
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                                      <span className="font-semibold text-zinc-850 text-xs">{cat.label}</span>
+                                      <span className="text-[9px] text-zinc-400 font-mono">({cat.id})</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingTeamCatId(cat.id);
+                                          setEditingTeamCatLabel(cat.label);
+                                        }}
+                                        className="text-[10px] text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100 p-1 rounded-lg transition cursor-pointer"
+                                        title="수정"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (teamCategories.length <= 1) {
+                                            showToast('최소한 1개 이상의 종목 카테고리는 유지해야 합니다.', 'error');
+                                            return;
+                                          }
+                                          showConfirm(
+                                            '종목 카테고리 삭제',
+                                            `"${cat.label}" 종목을 삭제하시겠습니까? 해당 종목에 소속된 팀들은 첫 번째 등록된 종목 카테고리로 자동으로 일괄 이동됩니다.`,
+                                            () => {
+                                              const updated = teamCategories.filter(c => c.id !== cat.id);
+                                              setTeamCategories(updated);
+                                              localStorage.setItem('kcf_team_categories', JSON.stringify(updated));
+                                              
+                                              // Fallback category for existing teams
+                                              const fallbackId = updated[0]?.id || 'club';
+                                              const updatedTeams = teams.map(t => t.category === cat.id ? { ...t, category: fallbackId } : t);
+                                              setTeams(updatedTeams);
+                                              localStorage.setItem('kcf_teams', JSON.stringify(updatedTeams));
+                                              
+                                              showToast('종목 카테고리가 삭제되었습니다.', 'success');
+                                            }
+                                          );
+                                        }}
+                                        className="text-[10px] text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-lg transition cursor-pointer"
+                                        title="삭제"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Add New Category */}
+                        <div className="bg-white border border-zinc-200 p-4 rounded-xl flex flex-col justify-between">
+                          <div className="space-y-3">
+                            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">새 종목 추가</div>
+                            <div className="space-y-2">
+                              <div>
+                                <label className="block text-[9px] text-zinc-400 font-bold mb-1">종목 영문 고유 ID (예: highschool, kids)</label>
+                                <input
+                                  type="text"
+                                  value={newTeamCatIdState}
+                                  onChange={(e) => setNewTeamCatIdState(e.target.value.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase())}
+                                  className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-950 font-mono"
+                                  placeholder="영문, 숫자, 하이픈(-)만 가능"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] text-zinc-400 font-bold mb-1">종목 한글 표시명 (예: 고등부 스쿨팀)</label>
+                                <input
+                                  type="text"
+                                  value={newTeamCatLabelState}
+                                  onChange={(e) => setNewTeamCatLabelState(e.target.value)}
+                                  className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-950 font-semibold"
+                                  placeholder="화면에 표시될 이름"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!newTeamCatIdState.trim() || !newTeamCatLabelState.trim()) {
+                                showToast('종목 영문 ID와 한글 명칭을 모두 입력해 주세요.', 'error');
+                                return;
+                              }
+                              if (teamCategories.some(c => c.id === newTeamCatIdState.trim())) {
+                                showToast('이미 존재하는 종목 영문 ID입니다.', 'error');
+                                return;
+                              }
+                              const added = [
+                                ...teamCategories,
+                                { id: newTeamCatIdState.trim(), label: newTeamCatLabelState.trim() }
+                              ];
+                              setTeamCategories(added);
+                              localStorage.setItem('kcf_team_categories', JSON.stringify(added));
+                              setNewTeamCatIdState('');
+                              setNewTeamCatLabelState('');
+                              showToast('새 종목 카테고리가 등록되었습니다.', 'success');
+                            }}
+                            className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-2 rounded-xl transition cursor-pointer text-xs shadow-xs mt-3 flex items-center justify-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            종목 추가하기
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Team Regions Editor Box */}
+                    <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                      <div className="flex justify-between items-center border-b border-zinc-200 pb-3">
+                        <div>
+                          <h5 className="text-xs font-bold text-zinc-950 flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+                            가입팀 소속 지부(지역구) 목록 설정 및 관리
+                          </h5>
+                          <p className="text-[10px] text-zinc-400 mt-0.5">치어리딩 팀들이 속하는 전국 지부 및 지역구를 설정하고 실시간으로 연동시킵니다.</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Regions List */}
+                        <div className="space-y-2">
+                          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">현재 등록된 지부 목록</div>
+                          <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                            {teamRegions.map((reg, idx) => (
+                              <div key={idx} className="flex items-center justify-between bg-white border border-zinc-200 rounded-xl px-3 py-2">
+                                {editingTeamRegionIdx === idx ? (
+                                  <div className="flex items-center gap-1.5 w-full">
+                                    <input
+                                      type="text"
+                                      value={editingTeamRegionValue}
+                                      onChange={(e) => setEditingTeamRegionValue(e.target.value)}
+                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-800 w-full focus:outline-none focus:border-zinc-950 font-semibold"
+                                      placeholder="지부명 입력"
+                                      autoFocus
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!editingTeamRegionValue.trim()) {
+                                          showToast('지부명을 입력해 주세요.', 'error');
+                                          return;
+                                        }
+                                        const oldName = reg;
+                                        const newName = editingTeamRegionValue.trim();
+                                        
+                                        // Update the regions list
+                                        const updated = [...teamRegions];
+                                        updated[idx] = newName;
+                                        setTeamRegions(updated);
+                                        localStorage.setItem('kcf_team_regions', JSON.stringify(updated));
+                                        
+                                        // Update existing teams using this region
+                                        const updatedTeams = teams.map(t => t.region === oldName ? { ...t, region: newName } : t);
+                                        setTeams(updatedTeams);
+                                        localStorage.setItem('kcf_teams', JSON.stringify(updatedTeams));
+                                        
+                                        setEditingTeamRegionIdx(null);
+                                        showToast('지부명이 성공적으로 변경되었습니다.', 'success');
+                                      }}
+                                      className="bg-zinc-900 text-white hover:bg-zinc-800 font-bold px-2.5 py-1 rounded-lg transition shrink-0 cursor-pointer text-[10px]"
+                                    >
+                                      저장
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingTeamRegionIdx(null)}
+                                      className="bg-zinc-100 hover:bg-zinc-200 text-zinc-600 font-bold px-2 py-1 rounded-lg transition shrink-0 cursor-pointer text-[10px]"
+                                    >
+                                      취소
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                      <span className="font-semibold text-zinc-850 text-xs">{reg} 지부</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingTeamRegionIdx(idx);
+                                          setEditingTeamRegionValue(reg);
+                                        }}
+                                        className="text-[10px] text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100 p-1 rounded-lg transition cursor-pointer"
+                                        title="수정"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (teamRegions.length <= 1) {
+                                            showToast('최소한 1개 이상의 지역 지부는 유지해야 합니다.', 'error');
+                                            return;
+                                          }
+                                          showConfirm(
+                                            '지부 삭제',
+                                            `"${reg}" 지부를 삭제하시겠습니까? 해당 지부에 소속된 팀들은 첫 번째 등록된 지부로 자동으로 일괄 변경됩니다.`,
+                                            () => {
+                                              const updated = teamRegions.filter((_, i) => i !== idx);
+                                              setTeamRegions(updated);
+                                              localStorage.setItem('kcf_team_regions', JSON.stringify(updated));
+                                              
+                                              // Fallback region for existing teams
+                                              const fallbackRegion = updated[0] || '서울';
+                                              const updatedTeams = teams.map(t => t.region === reg ? { ...t, region: fallbackRegion } : t);
+                                              setTeams(updatedTeams);
+                                              localStorage.setItem('kcf_teams', JSON.stringify(updatedTeams));
+                                              
+                                              showToast('지부가 삭제되었습니다.', 'success');
+                                            }
+                                          );
+                                        }}
+                                        className="text-[10px] text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-lg transition cursor-pointer"
+                                        title="삭제"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Add New Region */}
+                        <div className="bg-white border border-zinc-200 p-4 rounded-xl flex flex-col justify-between">
+                          <div className="space-y-3">
+                            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">새 지부 추가</div>
+                            <div className="space-y-2">
+                              <div>
+                                <label className="block text-[9px] text-zinc-400 font-bold mb-1">지부명 (예: 충청, 전라, 광주)</label>
+                                <input
+                                  type="text"
+                                  value={newTeamRegionValue}
+                                  onChange={(e) => setNewTeamRegionValue(e.target.value)}
+                                  className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-950 font-semibold"
+                                  placeholder="'지부' 생략 후 입력 (예: 대전)"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!newTeamRegionValue.trim()) {
+                                showToast('추가할 지부명을 입력해 주세요.', 'error');
+                                return;
+                              }
+                              if (teamRegions.includes(newTeamRegionValue.trim())) {
+                                showToast('이미 존재하는 지부명입니다.', 'error');
+                                return;
+                              }
+                              const added = [
+                                ...teamRegions,
+                                newTeamRegionValue.trim()
+                              ];
+                              setTeamRegions(added);
+                              localStorage.setItem('kcf_team_regions', JSON.stringify(added));
+                              setNewTeamRegionValue('');
+                              showToast('새 지부(지역구)가 등록되었습니다.', 'success');
+                            }}
+                            className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-2 rounded-xl transition cursor-pointer text-xs shadow-xs mt-3 flex items-center justify-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            지부 추가하기
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2">
                       <h4 className="text-xs font-bold text-zinc-950">정식 가입팀 디렉토리 목록 ({teams.length})</h4>
                       <button
                         onClick={() => setShowAddTeamForm(!showAddTeamForm)}
@@ -1845,23 +2334,25 @@ export default function App() {
                                 <label className="text-[10px] text-zinc-500 font-semibold">종목 분류</label>
                                 <select
                                   value={newTeamCategory}
-                                  onChange={(e) => setNewTeamCategory(e.target.value as any)}
+                                  onChange={(e) => setNewTeamCategory(e.target.value)}
                                   className="w-full bg-white border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900"
                                 >
-                                  <option value="allstar">올스타 치어 (Allstar)</option>
-                                  <option value="university">대학 치어 동아리 (University)</option>
-                                  <option value="club">클럽 치어 동단 (Club)</option>
+                                  {teamCategories.map((cat) => (
+                                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                  ))}
                                 </select>
                               </div>
                               <div className="space-y-1">
                                 <label className="text-[10px] text-zinc-500 font-semibold">소속 지부</label>
-                                <input
-                                  type="text"
-                                  placeholder="예: 서울지부"
+                                <select
                                   value={newTeamRegion}
                                   onChange={(e) => setNewTeamRegion(e.target.value)}
                                   className="w-full bg-white border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900"
-                                />
+                                >
+                                  {teamRegions.map((r) => (
+                                    <option key={r} value={r}>{r}</option>
+                                  ))}
+                                </select>
                               </div>
                             </div>
 
@@ -1926,7 +2417,7 @@ export default function App() {
                                   setShowAddTeamForm(false);
                                   setNewTeamName('');
                                   setNewTeamCategory('allstar');
-                                  setNewTeamRegion('');
+                                  setNewTeamRegion(teamRegions[0] || '서울');
                                   setNewTeamCoach('');
                                   setNewTeamEstablished('');
                                   setNewTeamDescription('');
@@ -1955,7 +2446,7 @@ export default function App() {
                                   setShowAddTeamForm(false);
                                   setNewTeamName('');
                                   setNewTeamCategory('allstar');
-                                  setNewTeamRegion('');
+                                  setNewTeamRegion(teamRegions[0] || '서울');
                                   setNewTeamCoach('');
                                   setNewTeamEstablished('');
                                   setNewTeamDescription('');
@@ -1971,36 +2462,193 @@ export default function App() {
                       )}
                     </AnimatePresence>
 
-                    <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-                      <table className="w-full text-xs text-left text-zinc-600">
+                    <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-sm overflow-x-auto">
+                      <table className="w-full text-xs text-left text-zinc-600 min-w-[850px]">
                         <thead className="bg-zinc-50 border-b border-zinc-200 text-zinc-900 uppercase font-bold text-[11px]">
                           <tr>
-                            <th className="px-4 py-3">팀명</th>
+                            <th className="px-4 py-3">팀명 및 상세내용</th>
                             <th className="px-4 py-3">종목</th>
                             <th className="px-4 py-3">지부</th>
                             <th className="px-4 py-3">선수 수</th>
-                            <th className="px-4 py-3">지도자</th>
+                            <th className="px-4 py-3">지도자 및 연락처</th>
                             <th className="px-4 py-3 text-right">관리 조작</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-100">
-                          {teams.map(team => (
-                            <tr key={team.id} className="hover:bg-zinc-50/50 transition">
-                              <td className="px-4 py-3.5 font-bold text-zinc-950">{team.name}</td>
-                              <td className="px-4 py-3.5 font-semibold text-zinc-700">{team.category}</td>
-                              <td className="px-4 py-3.5 text-zinc-600">{team.region}</td>
-                              <td className="px-4 py-3.5 font-mono font-bold text-zinc-900">{team.memberCount}명</td>
-                              <td className="px-4 py-3.5 font-semibold text-zinc-800">{team.coach} 감독</td>
-                              <td className="px-4 py-3.5 text-right">
-                                <button
-                                  onClick={() => handleDeleteTeamFromAdmin(team.id)}
-                                  className="text-red-500 hover:text-white hover:bg-red-500 border border-red-200 rounded px-2.5 py-1 transition text-[10px]"
-                                >
-                                  명부 제거
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {teams.map(team => {
+                            const isEditing = editingTeamId === team.id;
+                            const editData = editingTeamData;
+
+                            if (isEditing && editData) {
+                              return (
+                                <tr key={team.id} className="bg-zinc-50/70">
+                                  {/* Team Name, Established, Description Edit */}
+                                  <td className="px-4 py-3">
+                                    <div className="space-y-1">
+                                      <div className="flex gap-1.5">
+                                        <input
+                                          type="text"
+                                          value={editData.name}
+                                          onChange={(e) => setEditingTeamData({ ...editData, name: e.target.value })}
+                                          className="flex-1 bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-800 font-bold focus:outline-none focus:border-zinc-900"
+                                          placeholder="팀명"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={editData.established}
+                                          onChange={(e) => setEditingTeamData({ ...editData, established: e.target.value })}
+                                          className="w-16 bg-white border border-zinc-200 rounded-lg px-1.5 py-1 text-[10px] text-zinc-700 focus:outline-none focus:border-zinc-900 text-center"
+                                          placeholder="창단년도"
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={editData.description}
+                                        onChange={(e) => setEditingTeamData({ ...editData, description: e.target.value })}
+                                        className="w-full bg-white border border-zinc-200 rounded-lg px-2 py-1 text-[10px] text-zinc-500 focus:outline-none focus:border-zinc-900"
+                                        placeholder="팀 한줄 설명"
+                                      />
+                                    </div>
+                                  </td>
+
+                                  {/* Category Edit */}
+                                  <td className="px-4 py-3">
+                                    <select
+                                      value={editData.category}
+                                      onChange={(e) => setEditingTeamData({ ...editData, category: e.target.value })}
+                                      className="w-full bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900"
+                                    >
+                                      {teamCategories.map((cat) => (
+                                        <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+
+                                  {/* Region Edit */}
+                                  <td className="px-4 py-3">
+                                    <select
+                                      value={editData.region}
+                                      onChange={(e) => setEditingTeamData({ ...editData, region: e.target.value })}
+                                      className="w-24 bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900"
+                                    >
+                                      {teamRegions.map((r) => (
+                                        <option key={r} value={r}>{r}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+
+                                  {/* Member Count Edit */}
+                                  <td className="px-4 py-3">
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        value={editData.memberCount}
+                                        onChange={(e) => setEditingTeamData({ ...editData, memberCount: Number(e.target.value) })}
+                                        className="w-14 bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900 font-mono font-bold"
+                                        min="0"
+                                      />
+                                      <span className="text-[10px] text-zinc-500">명</span>
+                                    </div>
+                                  </td>
+
+                                  {/* Coach and Contact Edit */}
+                                  <td className="px-4 py-3">
+                                    <div className="space-y-1">
+                                      <input
+                                        type="text"
+                                        value={editData.coach}
+                                        onChange={(e) => setEditingTeamData({ ...editData, coach: e.target.value })}
+                                        className="w-full bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900 font-semibold"
+                                        placeholder="지도자명"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={editData.contact}
+                                        onChange={(e) => setEditingTeamData({ ...editData, contact: e.target.value })}
+                                        className="w-full bg-white border border-zinc-200 rounded-lg px-2 py-1 text-[10px] text-zinc-500 focus:outline-none focus:border-zinc-900"
+                                        placeholder="연락처"
+                                      />
+                                    </div>
+                                  </td>
+
+                                  {/* Actions for Edit Mode */}
+                                  <td className="px-4 py-3 text-right">
+                                    <div className="flex gap-1 justify-end">
+                                      <button
+                                        onClick={() => {
+                                          if (!editData.name || !editData.region || !editData.coach) {
+                                            alert('팀명, 지부, 지도자명은 필수입니다.');
+                                            return;
+                                          }
+                                          handleUpdateTeamFromAdmin(editData);
+                                          setEditingTeamId(null);
+                                          setEditingTeamData(null);
+                                        }}
+                                        className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded px-2.5 py-1.5 text-[10px] transition cursor-pointer"
+                                      >
+                                        저장
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditingTeamId(null);
+                                          setEditingTeamData(null);
+                                        }}
+                                        className="bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 font-bold rounded px-2.5 py-1.5 text-[10px] transition cursor-pointer"
+                                      >
+                                        취소
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return (
+                              <tr key={team.id} className="hover:bg-zinc-50/50 transition">
+                                <td className="px-4 py-3.5">
+                                  <div className="font-bold text-zinc-950 flex items-center gap-1.5">
+                                    <span>{team.name}</span>
+                                    <span className="text-[10px] text-zinc-400 font-normal">({team.established}년 창단)</span>
+                                  </div>
+                                  <div className="text-[10px] text-zinc-400 mt-0.5 line-clamp-1">{team.description}</div>
+                                </td>
+                                <td className="px-4 py-3.5 font-semibold text-zinc-700">
+                                  {teamCategories.find(c => c.id === team.category)?.label || team.category}
+                                </td>
+                                <td className="px-4 py-3.5 text-zinc-600">{team.region}</td>
+                                <td className="px-4 py-3.5 font-mono font-bold text-zinc-900">{team.memberCount}명</td>
+                                <td className="px-4 py-3.5">
+                                  <div className="font-semibold text-zinc-800">{team.coach} 감독</div>
+                                  <div className="text-[10px] text-zinc-400 mt-0.5">{team.contact}</div>
+                                </td>
+                                <td className="px-4 py-3.5 text-right">
+                                  <div className="flex gap-1.5 justify-end">
+                                    <button
+                                      onClick={() => {
+                                        setEditingTeamId(team.id);
+                                        setEditingTeamData({ ...team });
+                                      }}
+                                      className="text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 rounded px-2.5 py-0.5 transition text-[10px] font-semibold cursor-pointer"
+                                    >
+                                      수정
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        showConfirm(
+                                          '가입 단체 명부 제거',
+                                          `정식 가입 등록 팀인 ${team.name}의 모든 협회 승인 명부를 시스템에서 영구히 삭제하시겠습니까?`,
+                                          () => handleDeleteTeamFromAdmin(team.id)
+                                        );
+                                      }}
+                                      className="text-red-500 hover:text-white hover:bg-red-500 border border-red-200 rounded px-2.5 py-0.5 transition text-[10px] font-semibold cursor-pointer"
+                                    >
+                                      제거
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -2010,8 +2658,11 @@ export default function App() {
                 {/* 4. Inquiry Inbox Manager Panel */}
                 {adminActiveTab === 'inquiries' && (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-xs font-bold text-zinc-950">실시간 민원접수함 현황 ({inquiries.length})</h4>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <h4 className="text-xs font-bold text-zinc-950">실시간 민원접수함 현황 ({inquiries.length})</h4>
+                        <p className="text-[10px] text-zinc-400 mt-0.5">사용자 문의 및 신규 팀 가입 신청 내역을 검토하고 즉각적인 행정 처리를 지원합니다.</p>
+                      </div>
                       {inquiries.length > 0 && (
                         <button
                           onClick={() => {
@@ -2024,81 +2675,208 @@ export default function App() {
                               }
                             );
                           }}
-                          className="text-xs border border-red-200 text-red-500 hover:bg-red-50 font-bold px-3 py-1.5 rounded-full transition"
+                          className="text-xs border border-red-200 text-red-500 hover:bg-red-50 font-bold px-3 py-1.5 rounded-full transition cursor-pointer"
                         >
                           전체 영구 소거
                         </button>
                       )}
                     </div>
 
+                    {/* Inquiry Sub-category Filtering Tabs */}
+                    <div className="flex flex-wrap gap-1 p-1 bg-zinc-100 rounded-2xl w-max">
+                      {[
+                        { id: 'all', label: `전체 내역 (${inquiries.length}건)` },
+                        { id: 'contact', label: `일반 상담/문의 (${inquiries.filter(i => i.type !== 'team_reg').length}건)` },
+                        { id: 'team_reg', label: `신규 팀 가입 신청 (${inquiries.filter(i => i.type === 'team_reg').length}건)` }
+                      ].map(tab => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setInquiryFilter(tab.id as any)}
+                          className={`px-4 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all duration-300 cursor-pointer ${
+                            inquiryFilter === tab.id
+                              ? 'bg-zinc-900 text-white shadow-sm'
+                              : 'text-zinc-500 hover:text-zinc-900 bg-transparent'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
                     <div className="space-y-4">
-                      {inquiries.length === 0 ? (
-                        <div className="text-center py-16 border border-dashed border-zinc-200 bg-zinc-50 rounded-2xl text-zinc-400 text-xs">
-                          접수된 민원서류나 건의사항이 비어있습니다.
-                        </div>
-                      ) : (
-                        inquiries.map(inq => (
-                          <div key={inq.id} className="border border-zinc-200 p-5 rounded-2xl bg-zinc-50 hover:bg-white transition space-y-3 shadow-sm">
-                            <div className="flex justify-between items-start flex-wrap gap-2">
-                              <div>
-                                <span className="text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded mr-2">
-                                  {inq.type}
-                                </span>
-                                <span className="text-xs font-bold text-zinc-900">{inq.name} 담당자</span>
-                                <span className="text-xs text-zinc-300 mx-2">|</span>
-                                <span className="text-xs text-zinc-500">{inq.contact}</span>
-                                <span className="text-xs text-zinc-300 mx-1">/</span>
-                                <span className="text-xs text-zinc-500">{inq.email}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-mono text-zinc-400">{inq.date}</span>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                                  inq.status === 'replied' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                  inq.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                                  'bg-red-50 text-red-500 border border-red-100'
-                                }`}>
-                                  {inq.status === 'replied' ? '답변완료' : inq.status === 'in_progress' ? '검토중' : '접수완료'}
-                                </span>
-                              </div>
-                            </div>
+                      {(() => {
+                        const filteredInquiries = inquiries.filter(inq => {
+                          if (inquiryFilter === 'all') return true;
+                          if (inquiryFilter === 'team_reg') return inq.type === 'team_reg';
+                          return inq.type !== 'team_reg';
+                        });
 
-                            <div className="bg-white border border-zinc-200 p-4 rounded-xl space-y-2">
-                              <div className="font-bold text-zinc-950 text-xs">{inq.subject}</div>
-                              <p className="text-xs text-zinc-600 font-normal whitespace-pre-wrap leading-relaxed">
-                                {inq.message}
-                              </p>
+                        if (filteredInquiries.length === 0) {
+                          return (
+                            <div className="text-center py-16 border border-dashed border-zinc-200 bg-zinc-50 rounded-2xl text-zinc-400 text-xs">
+                              선택하신 필터 조건에 부합하는 접수 내역이 없습니다.
                             </div>
+                          );
+                        }
 
-                            <div className="flex justify-between items-center text-xs pt-1">
-                              <span className="text-zinc-400 font-light font-mono text-[10px]">인증 코드: {inq.id}</span>
-                              <div className="flex gap-2">
-                                {inq.status !== 'replied' && (
+                        return filteredInquiries.map(inq => {
+                          let isTeamReg = inq.type === 'team_reg';
+                          let teamRegData: any = null;
+                          if (isTeamReg) {
+                            try {
+                              teamRegData = JSON.parse(inq.message);
+                            } catch (e) {
+                              isTeamReg = false;
+                            }
+                          }
+
+                          return (
+                            <div key={inq.id} className="border border-zinc-200 p-5 rounded-2xl bg-zinc-50 hover:bg-white transition space-y-3 shadow-sm">
+                              <div className="flex justify-between items-start flex-wrap gap-2">
+                                <div>
+                                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border mr-2 ${
+                                    isTeamReg ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-600 border-blue-100'
+                                  }`}>
+                                    {isTeamReg ? '팀 가입 신청' : inq.type === 'competition' ? '대회 문의' : inq.type === 'coaching' ? '강습회 문의' : '일반 상담'}
+                                  </span>
+                                  <span className="text-xs font-bold text-zinc-900">
+                                    {isTeamReg ? teamRegData?.coach : inq.name} {isTeamReg ? '신청인(지도자)' : '담당자'}
+                                  </span>
+                                  <span className="text-xs text-zinc-300 mx-2">|</span>
+                                  <span className="text-xs text-zinc-500">{isTeamReg ? teamRegData?.contact : inq.contact}</span>
+                                  {!isTeamReg && (
+                                    <>
+                                      <span className="text-xs text-zinc-300 mx-1">/</span>
+                                      <span className="text-xs text-zinc-500">{inq.email}</span>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-mono text-zinc-400">{inq.date}</span>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                    inq.status === 'replied' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                    inq.status === 'in_progress' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                                    'bg-red-50 text-red-500 border border-red-100'
+                                  }`}>
+                                    {inq.status === 'replied' ? (isTeamReg ? '가입승인 완료' : '답변완료') : inq.status === 'in_progress' ? '검토중' : '접수완료'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {isTeamReg && teamRegData ? (
+                                <div className="bg-white border border-zinc-200 p-4 rounded-xl space-y-3 text-xs">
+                                  <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                                    <div className="font-bold text-zinc-950 text-sm flex items-center gap-2">
+                                      <Trophy className="w-4 h-4 text-amber-500" />
+                                      {teamRegData.name} <span className="text-[11px] text-zinc-400 font-normal">신청 정보</span>
+                                    </div>
+                                    <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                                      {teamRegData.category === 'allstar' ? '올스타 (All-Star)' : teamRegData.category === 'university' ? '대학부 (University)' : '일반클럽 (Club)'}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                                    <div>
+                                      <span className="text-zinc-400 block text-[10px]">연고지 / 지부</span>
+                                      <span className="font-bold text-zinc-800">{teamRegData.region} 지부</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-zinc-400 block text-[10px]">대표 지도자</span>
+                                      <span className="font-bold text-zinc-800">{teamRegData.coach} 감독</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-zinc-400 block text-[10px]">선수단 인원수</span>
+                                      <span className="font-bold text-zinc-800">{teamRegData.memberCount}명</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-zinc-400 block text-[10px]">연락처 / 대표번호</span>
+                                      <span className="font-bold text-zinc-800">{teamRegData.contact}</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="bg-zinc-50 border border-zinc-200 p-3 rounded-lg space-y-1">
+                                    <span className="text-[10px] text-zinc-400 font-bold block">팀 소개글 및 가입 동기</span>
+                                    <p className="text-xs text-zinc-600 whitespace-pre-wrap font-normal leading-relaxed">
+                                      {teamRegData.description}
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="bg-white border border-zinc-200 p-4 rounded-xl space-y-2 text-xs">
+                                  <div className="font-bold text-zinc-950 text-xs">{inq.subject}</div>
+                                  <p className="text-xs text-zinc-600 font-normal whitespace-pre-wrap leading-relaxed">
+                                    {inq.message}
+                                  </p>
+                                </div>
+                              )}
+
+                              <div className="flex justify-between items-center text-xs pt-1 flex-wrap gap-2">
+                                <span className="text-zinc-400 font-light font-mono text-[10px]">인증 코드: {inq.id}</span>
+                                <div className="flex gap-2">
+                                  {isTeamReg && teamRegData && inq.status !== 'replied' && (
+                                    <button
+                                      onClick={() => {
+                                        showConfirm(
+                                          '신규 가입 승인 및 공식 등록',
+                                          `"${teamRegData.name}" 단체를 한국치어리딩협회(KCF) 공식 가입팀 목록에 즉시 등록하고 본 신청 건을 최종 승인 처리하시겠습니까?`,
+                                          () => {
+                                            const newTeam = {
+                                              id: `team-${Date.now()}`,
+                                              name: teamRegData.name,
+                                              category: teamRegData.category,
+                                              region: teamRegData.region,
+                                              memberCount: Number(teamRegData.memberCount),
+                                              coach: teamRegData.coach,
+                                              established: teamRegData.established || new Date().toISOString().split('T')[0],
+                                              description: teamRegData.description,
+                                              contact: teamRegData.contact
+                                            };
+                                            const updatedTeams = [...teams, newTeam];
+                                            setTeams(updatedTeams);
+                                            localStorage.setItem('kcf_teams', JSON.stringify(updatedTeams));
+
+                                            handleUpdateInquiryStatus(inq.id, 'replied');
+                                            showToast(`"${teamRegData.name}" 단체가 공식 가입팀으로 승인 및 성공적으로 등록되었습니다.`, 'success');
+                                          }
+                                        );
+                                      }}
+                                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1 rounded transition text-[10px] flex items-center gap-1 shadow-sm cursor-pointer"
+                                    >
+                                      <ShieldCheck className="w-3.5 h-3.5" />
+                                      가입 승인 (팀 등록)
+                                    </button>
+                                  )}
+
+                                  {!isTeamReg && inq.status !== 'replied' && (
+                                    <button
+                                      onClick={() => handleUpdateInquiryStatus(inq.id, 'replied')}
+                                      className="bg-emerald-500 text-white font-bold px-3 py-1 rounded hover:bg-emerald-600 transition text-[10px] cursor-pointer"
+                                    >
+                                      답변 완료로 표기
+                                    </button>
+                                  )}
+                                  
+                                  {inq.status === 'received' && (
+                                    <button
+                                      onClick={() => handleUpdateInquiryStatus(inq.id, 'in_progress')}
+                                      className="bg-zinc-900 text-white font-bold px-3 py-1 hover:bg-zinc-800 transition text-[10px] cursor-pointer"
+                                    >
+                                      검토중으로 전환
+                                    </button>
+                                  )}
+                                  
                                   <button
-                                    onClick={() => handleUpdateInquiryStatus(inq.id, 'replied')}
-                                    className="bg-emerald-500 text-white font-bold px-3 py-1 rounded hover:bg-emerald-600 transition text-[10px]"
+                                    onClick={() => handleDeleteInquiry(inq.id)}
+                                    className="text-red-500 hover:text-white hover:bg-red-500 border border-red-200 rounded px-2.5 py-1 transition text-[10px] cursor-pointer"
                                   >
-                                    답변 완료로 표기
+                                    접수 삭제
                                   </button>
-                                )}
-                                {inq.status === 'received' && (
-                                  <button
-                                    onClick={() => handleUpdateInquiryStatus(inq.id, 'in_progress')}
-                                    className="bg-zinc-900 text-white font-bold px-3 py-1 hover:bg-zinc-800 transition text-[10px]"
-                                  >
-                                    검토중으로 전환
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleDeleteInquiry(inq.id)}
-                                  className="text-red-500 hover:text-white hover:bg-red-500 border border-red-200 rounded px-2.5 py-1 transition text-[10px]"
-                                >
-                                  접수 삭제
-                                </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
-                      )}
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 )}
@@ -2106,6 +2884,197 @@ export default function App() {
                 {/* 5. Schedule Manager Panel */}
                 {adminActiveTab === 'schedules' && (
                   <div id="admin-schedules-section" className="space-y-6">
+                    {/* Schedule Categories Management */}
+                    <div className="bg-zinc-50 border border-zinc-200 p-5 rounded-2xl space-y-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-zinc-150 pb-2 gap-2">
+                        <div>
+                          <span className="text-xs font-black text-zinc-900">일정 카테고리 (구분 유형) 설정</span>
+                          <p className="text-[10px] text-zinc-400 mt-0.5">일정 안내 페이지와 일정 등록 폼에 실시간 반영될 구분 카테고리를 추가/수정합니다.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            showConfirm(
+                              '카테고리 기본값 복원',
+                              '모든 일정 카테고리를 초기 기본값(국내 대회, 국제 대회, 지도자 교육, 국가대표 선발, 정기 세미나)으로 재설정하시겠습니까?',
+                              () => {
+                                const defaults = [
+                                  { id: 'domestic', label: '국내 대회' },
+                                  { id: 'international', label: '국제 대회' },
+                                  { id: 'education', label: '지도자 교육' },
+                                  { id: 'selection', label: '국가대표 선발' },
+                                  { id: 'seminar', label: '정기 세미나' }
+                                ];
+                                setScheduleCategories(defaults);
+                                localStorage.setItem('kcf_schedule_categories', JSON.stringify(defaults));
+                                showToast('일정 카테고리가 기본값으로 복원되었습니다.', 'success');
+                              }
+                            );
+                          }}
+                          className="text-[10px] border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 font-bold px-2.5 py-1 rounded-full transition cursor-pointer flex items-center gap-1 shrink-0"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          기본값 복원
+                        </button>
+                      </div>
+
+                      {/* Categories List & Add */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* List & Edit Column */}
+                        <div className="space-y-2">
+                          <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">현재 등록된 카테고리 목록</div>
+                          <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                            {scheduleCategories.map((cat) => (
+                              <div key={cat.id} className="flex items-center justify-between bg-white border border-zinc-200 rounded-xl px-3 py-2">
+                                {editingCatId === cat.id ? (
+                                  <div className="flex items-center gap-1.5 w-full">
+                                    <input
+                                      type="text"
+                                      value={editingCatLabel}
+                                      onChange={(e) => setEditingCatLabel(e.target.value)}
+                                      className="bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-800 w-full focus:outline-none focus:border-zinc-950 font-semibold"
+                                      placeholder="카테고리명 입력"
+                                      autoFocus
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!editingCatLabel.trim()) {
+                                          showToast('이름을 입력해 주세요.', 'error');
+                                          return;
+                                        }
+                                        const updated = scheduleCategories.map(c => c.id === cat.id ? { ...c, label: editingCatLabel.trim() } : c);
+                                        setScheduleCategories(updated);
+                                        localStorage.setItem('kcf_schedule_categories', JSON.stringify(updated));
+                                        setEditingCatId(null);
+                                        showToast('카테고리명이 변경되었습니다.', 'success');
+                                      }}
+                                      className="bg-zinc-900 text-white hover:bg-zinc-800 font-bold px-2.5 py-1 rounded-lg transition shrink-0 cursor-pointer text-[10px]"
+                                    >
+                                      저장
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingCatId(null)}
+                                      className="bg-zinc-100 hover:bg-zinc-200 text-zinc-600 font-bold px-2 py-1 rounded-lg transition shrink-0 cursor-pointer text-[10px]"
+                                    >
+                                      취소
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`w-2 h-2 rounded-full ${getEventBadgeColor(cat.id).split(' ')[0]}`} />
+                                      <span className="font-semibold text-zinc-800">{cat.label}</span>
+                                      <span className="text-[9px] text-zinc-400 font-mono">({cat.id})</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingCatId(cat.id);
+                                          setEditingCatLabel(cat.label);
+                                        }}
+                                        className="text-[10px] text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100 p-1 rounded-lg transition cursor-pointer"
+                                        title="수정"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (scheduleCategories.length <= 1) {
+                                            showToast('최소한 1개 이상의 카테고리는 유지해야 합니다.', 'error');
+                                            return;
+                                          }
+                                          showConfirm(
+                                            '카테고리 삭제',
+                                            `"${cat.label}" 카테고리를 삭제하시겠습니까? 해당 카테고리로 등록된 일정은 다른 유효한 카테고리로 자동으로 변경됩니다.`,
+                                            () => {
+                                              const updated = scheduleCategories.filter(c => c.id !== cat.id);
+                                              setScheduleCategories(updated);
+                                              localStorage.setItem('kcf_schedule_categories', JSON.stringify(updated));
+                                              
+                                              // Fallback category for existing events
+                                              const fallbackId = updated[0]?.id || 'domestic';
+                                              const updatedEvents = events.map(e => e.type === cat.id ? { ...e, type: fallbackId } : e);
+                                              setEvents(updatedEvents);
+                                              localStorage.setItem('kcf_events', JSON.stringify(updatedEvents));
+                                              
+                                              showToast('카테고리가 삭제되었습니다.', 'success');
+                                            }
+                                          );
+                                        }}
+                                        className="text-[10px] text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-lg transition cursor-pointer"
+                                        title="삭제"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Add New Category Column */}
+                        <div className="bg-white border border-zinc-150 p-4 rounded-xl flex flex-col justify-between">
+                          <div className="space-y-3">
+                            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">새 카테고리 추가</div>
+                            <div className="space-y-2">
+                              <div>
+                                <label className="block text-[9px] text-zinc-400 font-bold mb-1">카테고리 영문 고유 ID (예: training, beach)</label>
+                                <input
+                                  type="text"
+                                  value={newCatId}
+                                  onChange={(e) => setNewCatId(e.target.value.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase())}
+                                  className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-950 font-mono"
+                                  placeholder="영문, 숫자, 하이픈(-)만 가능"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] text-zinc-400 font-bold mb-1">카테고리 한글 표시명 (예: 하계 연수)</label>
+                                <input
+                                  type="text"
+                                  value={newCatLabel}
+                                  onChange={(e) => setNewCatLabel(e.target.value)}
+                                  className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-950 font-semibold"
+                                  placeholder="화면에 표시될 이름"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!newCatId.trim() || !newCatLabel.trim()) {
+                                showToast('영문 ID와 한글 명칭을 모두 입력해 주세요.', 'error');
+                                return;
+                              }
+                              if (scheduleCategories.some(c => c.id === newCatId.trim())) {
+                                showToast('이미 존재하는 영문 ID입니다.', 'error');
+                                return;
+                              }
+                              const added = [
+                                ...scheduleCategories,
+                                { id: newCatId.trim(), label: newCatLabel.trim() }
+                              ];
+                              setScheduleCategories(added);
+                              localStorage.setItem('kcf_schedule_categories', JSON.stringify(added));
+                              setNewCatId('');
+                              setNewCatLabel('');
+                              showToast('새 카테고리가 등록되었습니다.', 'success');
+                            }}
+                            className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-2 rounded-xl transition cursor-pointer text-xs shadow-xs mt-3 flex items-center justify-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            카테고리 추가하기
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex justify-between items-center">
                       <h4 className="text-xs font-bold text-zinc-950">공식 등록 일정 목록 ({events.length})</h4>
                       <button
@@ -2115,7 +3084,7 @@ export default function App() {
                             setNewEvStartDate('');
                             setNewEvEndDate('');
                             setNewEvIsRange(false);
-                            setNewEvType('competition');
+                            setNewEvType('domestic');
                             setNewEvLocation('');
                             setNewEvDescription('');
                             setNewEvStatus('upcoming');
@@ -2171,7 +3140,7 @@ export default function App() {
                               setNewEvStartDate('');
                               setNewEvEndDate('');
                               setNewEvIsRange(false);
-                              setNewEvType('competition');
+                              setNewEvType('domestic');
                               setNewEvLocation('');
                               setNewEvDescription('');
                               setNewEvStatus('upcoming');
@@ -2252,10 +3221,9 @@ export default function App() {
                                   onChange={(e: any) => setNewEvType(e.target.value)}
                                   className="w-full bg-white border border-zinc-200 rounded-xl p-2.5 text-zinc-800 focus:outline-none focus:border-zinc-900"
                                 >
-                                  <option value="competition">전국 대회</option>
-                                  <option value="education">지도자 교육</option>
-                                  <option value="selection">국가대표 선발</option>
-                                  <option value="seminar">정기 세미나</option>
+                                  {scheduleCategories.map((cat) => (
+                                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                  ))}
                                 </select>
                               </div>
 
@@ -2312,7 +3280,7 @@ export default function App() {
                                   setNewEvStartDate('');
                                   setNewEvEndDate('');
                                   setNewEvIsRange(false);
-                                  setNewEvType('competition');
+                                  setNewEvType('domestic');
                                   setNewEvLocation('');
                                   setNewEvDescription('');
                                   setNewEvStatus('upcoming');
@@ -2338,8 +3306,8 @@ export default function App() {
 
 
                     {/* Events Table List */}
-                    <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-sm font-sans">
-                      <table className="w-full text-xs text-left text-zinc-600">
+                    <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-sm font-sans overflow-x-auto">
+                      <table className="w-full text-xs text-left text-zinc-600 min-w-[750px]">
                         <thead className="bg-zinc-50 border-b border-zinc-200 text-zinc-900 uppercase font-bold text-[11px]">
                           <tr>
                             <th className="px-4 py-3">유형</th>
@@ -2765,6 +3733,65 @@ export default function App() {
                               </div>
                             </div>
 
+                            <div className="grid grid-cols-1 gap-4">
+                              <div className="space-y-1">
+                                <label className="text-[10px] text-zinc-500 font-semibold block">선수 사진 설정 (URL 또는 직접 업로드)</label>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="https://images.unsplash.com/... 또는 직접 파일 업로드"
+                                    value={newAthleteImageUrl}
+                                    onChange={(e) => setNewAthleteImageUrl(e.target.value)}
+                                    className="flex-1 bg-white border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900"
+                                  />
+                                  <div className="flex gap-1.5 shrink-0">
+                                    <label className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold px-3.5 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap">
+                                      <Upload className="w-3.5 h-3.5" />
+                                      <span>기기에서 업로드</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0];
+                                          if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => {
+                                              setNewAthleteImageUrl(reader.result as string);
+                                              showToast('선수 사진이 성공적으로 업로드되었습니다.', 'success');
+                                            };
+                                            reader.readAsDataURL(file);
+                                          }
+                                        }}
+                                      />
+                                    </label>
+                                    {newAthleteImageUrl && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setNewAthleteImageUrl('');
+                                          showToast('선수 사진이 제거되었습니다.', 'info');
+                                        }}
+                                        className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold px-3 py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1 whitespace-nowrap cursor-pointer"
+                                      >
+                                        삭제
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                {newAthleteImageUrl && (
+                                  <div className="mt-2 inline-block">
+                                    <img
+                                      src={newAthleteImageUrl}
+                                      alt="선수 미리보기"
+                                      className="h-20 w-16 object-cover rounded-lg border border-zinc-200 shadow-xs"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
                             <div className="flex justify-end gap-2 pt-2">
                               <button
                                 onClick={() => {
@@ -2778,6 +3805,7 @@ export default function App() {
                                   setNewAthleteLevel('일반선수');
                                   setNewAthleteStatus('정상등록');
                                   setNewAthleteValidUntil('2027-02-28');
+                                  setNewAthleteImageUrl('');
                                 }}
                                 className="bg-white border border-zinc-200 text-zinc-700 font-semibold px-4 py-2 rounded-xl text-xs hover:bg-zinc-50 transition cursor-pointer"
                               >
@@ -2800,7 +3828,8 @@ export default function App() {
                                     level: newAthleteLevel,
                                     registerDate: new Date().toISOString().split('T')[0],
                                     validUntil: newAthleteValidUntil,
-                                    status: newAthleteStatus
+                                    status: newAthleteStatus,
+                                    imageUrl: newAthleteImageUrl || undefined
                                   });
                                   setShowAddAthleteForm(false);
                                   setNewAthleteName('');
@@ -2812,6 +3841,7 @@ export default function App() {
                                   setNewAthleteLevel('일반선수');
                                   setNewAthleteStatus('정상등록');
                                   setNewAthleteValidUntil('2027-02-28');
+                                  setNewAthleteImageUrl('');
                                 }}
                                 className="bg-zinc-900 text-white font-semibold px-5 py-2 rounded-xl text-xs hover:bg-zinc-800 transition cursor-pointer"
                               >
@@ -2823,84 +3853,306 @@ export default function App() {
                       )}
                     </AnimatePresence>
 
-                    <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-                      <table className="w-full text-xs text-left text-zinc-600">
+                    <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-sm overflow-x-auto">
+                      <table className="w-full text-xs text-left text-zinc-600 min-w-[900px]">
                         <thead className="text-[10px] uppercase text-zinc-500 bg-zinc-50 font-bold border-b border-zinc-200">
                           <tr>
-                            <th className="px-4 py-3">선수 성명</th>
+                            <th className="px-4 py-3">선수 사진</th>
+                            <th className="px-4 py-3">선수 성명 및 인적사항</th>
                             <th className="px-4 py-3">선수 등록번호</th>
                             <th className="px-4 py-3">소속 단체 및 팀</th>
                             <th className="px-4 py-3">공인 수행레벨</th>
                             <th className="px-4 py-3">자격유효 상태</th>
-                            <th className="px-4 py-3">자격 만료일 (수정 가능)</th>
+                            <th className="px-4 py-3">자격 만료일</th>
                             <th className="px-4 py-3 text-right">관리 조작</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-100">
-                          {athletes.map((ath) => (
-                            <tr key={ath.id} className="hover:bg-zinc-50/50 transition">
-                              <td className="px-4 py-3.5">
-                                <div className="font-bold text-zinc-900 flex items-center gap-1.5">
-                                  <span>{ath.name}</span>
-                                  <span className="text-[10px] text-zinc-400 font-normal">({ath.gender}, {ath.birthDate.split('-')[0]}년생)</span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <span className="font-mono bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded text-[10px] font-bold">
-                                  {ath.regNumber}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5 font-medium text-zinc-800">{ath.teamName}</td>
-                              <td className="px-4 py-3.5">
-                                <div className="font-bold text-zinc-700">{ath.level}</div>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${
-                                  ath.status === '정상등록'
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                    : ath.status === '갱신필요'
-                                    ? 'bg-amber-50 text-amber-700 border-amber-100'
-                                    : 'bg-rose-50 text-rose-700 border-rose-100'
-                                }`}>
-                                  <span className={`w-1 h-1 rounded-full ${
+                          {athletes.map((ath) => {
+                            const isEditing = editingAthleteId === ath.id;
+                            const editData = editingAthleteData;
+
+                            if (isEditing && editData) {
+                              return (
+                                <tr key={ath.id} className="bg-zinc-50/70">
+                                  {/* Photo Edit */}
+                                  <td className="px-4 py-3">
+                                    <div className="space-y-1 flex flex-col items-center">
+                                      {editData.imageUrl ? (
+                                        <img
+                                          src={editData.imageUrl}
+                                          alt="미리보기"
+                                          className="h-12 w-10 object-cover rounded-md border border-zinc-200 shadow-xs"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                      ) : (
+                                        <div className="h-12 w-10 bg-zinc-200 rounded-md flex items-center justify-center text-zinc-400">
+                                          <User className="w-4 h-4" />
+                                        </div>
+                                      )}
+                                      <input
+                                        type="text"
+                                        placeholder="https://..."
+                                        value={editData.imageUrl || ''}
+                                        onChange={(e) => setEditingAthleteData({ ...editData, imageUrl: e.target.value })}
+                                        className="w-24 bg-white border border-zinc-200 rounded-lg p-1 text-[9px] focus:outline-none focus:border-zinc-900"
+                                      />
+                                      <div className="flex gap-1">
+                                        <label className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold px-1.5 py-0.5 rounded text-[8px] transition cursor-pointer flex items-center justify-center gap-0.5 border border-zinc-300">
+                                          <Upload className="w-2.5 h-2.5" />
+                                          <span>업로드</span>
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                  setEditingAthleteData({ ...editData, imageUrl: reader.result as string });
+                                                  showToast('선수 사진이 성공적으로 업로드되었습니다.', 'success');
+                                                };
+                                                reader.readAsDataURL(file);
+                                              }
+                                            }}
+                                          />
+                                        </label>
+                                        {editData.imageUrl && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingAthleteData({ ...editData, imageUrl: '' });
+                                              showToast('선수 사진이 제거되었습니다.', 'info');
+                                            }}
+                                            className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold px-1.5 py-0.5 rounded text-[8px] transition cursor-pointer"
+                                          >
+                                            삭제
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Name, Gender, Birthdate Edit */}
+                                  <td className="px-4 py-3">
+                                    <div className="space-y-1">
+                                      <input
+                                        type="text"
+                                        value={editData.name}
+                                        onChange={(e) => setEditingAthleteData({ ...editData, name: e.target.value })}
+                                        className="w-full bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-800 font-bold focus:outline-none focus:border-zinc-900"
+                                        placeholder="성명"
+                                      />
+                                      <div className="flex gap-1">
+                                        <select
+                                          value={editData.gender}
+                                          onChange={(e) => setEditingAthleteData({ ...editData, gender: e.target.value as '남' | '여' })}
+                                          className="bg-white border border-zinc-200 rounded-lg px-1 py-1 text-[10px] text-zinc-800 focus:outline-none focus:border-zinc-900"
+                                        >
+                                          <option value="여">여</option>
+                                          <option value="남">남</option>
+                                        </select>
+                                        <input
+                                          type="date"
+                                          value={editData.birthDate}
+                                          onChange={(e) => setEditingAthleteData({ ...editData, birthDate: e.target.value })}
+                                          className="bg-white border border-zinc-200 rounded-lg px-1.5 py-1 text-[10px] font-mono text-zinc-800 focus:outline-none focus:border-zinc-900"
+                                        />
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Reg Number Edit */}
+                                  <td className="px-4 py-3">
+                                    <input
+                                      type="text"
+                                      value={editData.regNumber}
+                                      onChange={(e) => setEditingAthleteData({ ...editData, regNumber: e.target.value })}
+                                      className="w-full bg-white border border-zinc-200 rounded-lg px-2 py-1 text-[11px] font-mono font-bold text-zinc-800 focus:outline-none focus:border-zinc-900"
+                                    />
+                                  </td>
+
+                                  {/* Team Name Edit */}
+                                  <td className="px-4 py-3">
+                                    <select
+                                      value={editData.teamName}
+                                      onChange={(e) => setEditingAthleteData({ ...editData, teamName: e.target.value })}
+                                      className="w-full bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900"
+                                    >
+                                      {teams.map(t => (
+                                        <option key={t.id} value={t.name}>{t.name}</option>
+                                      ))}
+                                      <option value="개인 자격">개인 자격 (미지정)</option>
+                                    </select>
+                                  </td>
+
+                                  {/* Level Edit */}
+                                  <td className="px-4 py-3">
+                                    <select
+                                      value={editData.level}
+                                      onChange={(e) => setEditingAthleteData({ ...editData, level: e.target.value })}
+                                      className="w-full bg-white border border-zinc-200 rounded-lg px-1.5 py-1 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900"
+                                    >
+                                      <option value="일반선수">일반선수</option>
+                                      <option value="지도자 (클래스1)">지도자 (클래스1)</option>
+                                      <option value="지도자 (클래스2)">지도자 (클래스2)</option>
+                                    </select>
+                                  </td>
+
+                                  {/* Status Edit */}
+                                  <td className="px-4 py-3">
+                                    <select
+                                      value={editData.status}
+                                      onChange={(e) => setEditingAthleteData({ ...editData, status: e.target.value as any })}
+                                      className="w-full bg-white border border-zinc-200 rounded-lg px-1.5 py-1 text-[11px] font-bold text-zinc-800 focus:outline-none focus:border-zinc-900"
+                                    >
+                                      <option value="정상등록">정상등록</option>
+                                      <option value="갱신필요">갱신필요</option>
+                                      <option value="정지">정지</option>
+                                    </select>
+                                  </td>
+
+                                  {/* Valid Until Edit */}
+                                  <td className="px-4 py-3">
+                                    <input
+                                      type="date"
+                                      value={editData.validUntil}
+                                      onChange={(e) => setEditingAthleteData({ ...editData, validUntil: e.target.value })}
+                                      className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-[11px] font-mono text-zinc-800 focus:outline-none focus:border-zinc-900 w-28"
+                                    />
+                                  </td>
+
+                                  {/* Actions for Edit Mode */}
+                                  <td className="px-4 py-3 text-right">
+                                    <div className="flex gap-1 justify-end">
+                                      <button
+                                        onClick={() => {
+                                          if (!editData.name || !editData.birthDate) {
+                                            alert('선수명과 생년월일은 필수입니다.');
+                                            return;
+                                          }
+                                          handleUpdateAthleteFromAdmin(editData);
+                                          setEditingAthleteId(null);
+                                          setEditingAthleteData(null);
+                                        }}
+                                        className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded px-2 py-1 text-[10px] transition cursor-pointer"
+                                      >
+                                        저장
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditingAthleteId(null);
+                                          setEditingAthleteData(null);
+                                        }}
+                                        className="bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 font-bold rounded px-2 py-1 text-[10px] transition cursor-pointer"
+                                      >
+                                        취소
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return (
+                              <tr key={ath.id} className="hover:bg-zinc-50/50 transition">
+                                {/* Photo Display */}
+                                <td className="px-4 py-3.5">
+                                  {ath.imageUrl ? (
+                                    <img
+                                      src={ath.imageUrl}
+                                      alt={ath.name}
+                                      className="h-12 w-10 object-cover rounded-md border border-zinc-200 shadow-xs"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <div className="h-12 w-10 bg-zinc-100 rounded-md border border-zinc-200 flex items-center justify-center text-zinc-400" title="이미지 없음">
+                                      <User className="w-4 h-4" />
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* Name & Details */}
+                                <td className="px-4 py-3.5">
+                                  <div className="font-bold text-zinc-900 flex flex-col sm:flex-row sm:items-center gap-1">
+                                    <span>{ath.name}</span>
+                                    <span className="text-[10px] text-zinc-400 font-normal">({ath.gender}, {ath.birthDate.split('-')[0]}년생)</span>
+                                  </div>
+                                </td>
+
+                                {/* Reg Number */}
+                                <td className="px-4 py-3.5">
+                                  <span className="font-mono bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                                    {ath.regNumber}
+                                  </span>
+                                </td>
+
+                                {/* Team Name */}
+                                <td className="px-4 py-3.5 font-medium text-zinc-800">{ath.teamName}</td>
+
+                                {/* Level */}
+                                <td className="px-4 py-3.5">
+                                  <div className="font-bold text-zinc-700">{ath.level}</div>
+                                </td>
+
+                                {/* Status */}
+                                <td className="px-4 py-3.5">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${
                                     ath.status === '정상등록'
-                                      ? 'bg-emerald-500'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                       : ath.status === '갱신필요'
-                                      ? 'bg-amber-500'
-                                      : 'bg-rose-500'
-                                  }`} />
-                                  {ath.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <input
-                                  type="date"
-                                  value={ath.validUntil}
-                                  onChange={(e) => {
-                                    handleUpdateAthleteValidUntil(ath.id, e.target.value);
-                                  }}
-                                  className="bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900 font-mono w-32 cursor-pointer transition hover:border-zinc-400"
-                                />
-                              </td>
-                              <td className="px-4 py-3.5 text-right">
-                                <button
-                                  onClick={() => {
-                                    showConfirm(
-                                      '선수 등록 정보 영구 삭제',
-                                      `선수 ${ath.name}(${ath.regNumber})의 공인 협회 등록 정보를 시스템에서 영구히 삭제하시겠습니까?`,
-                                      () => handleDeleteAthleteFromAdmin(ath.id)
-                                    );
-                                  }}
-                                  className="text-red-500 hover:text-white hover:bg-red-500 border border-red-200 rounded px-2 py-0.5 transition text-[10px] font-semibold cursor-pointer"
-                                >
-                                  삭제
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                                      ? 'bg-amber-50 text-amber-700 border-amber-100'
+                                      : 'bg-rose-50 text-rose-700 border-rose-100'
+                                  }`}>
+                                    <span className={`w-1 h-1 rounded-full ${
+                                      ath.status === '정상등록'
+                                        ? 'bg-emerald-500'
+                                        : ath.status === '갱신필요'
+                                        ? 'bg-amber-500'
+                                        : 'bg-rose-500'
+                                    }`} />
+                                    {ath.status}
+                                  </span>
+                                </td>
+
+                                {/* Expiration Date */}
+                                <td className="px-4 py-3.5 font-mono text-xs text-zinc-800">
+                                  {ath.validUntil}
+                                </td>
+
+                                {/* Actions */}
+                                <td className="px-4 py-3.5 text-right">
+                                  <div className="flex gap-1.5 justify-end">
+                                    <button
+                                      onClick={() => {
+                                        setEditingAthleteId(ath.id);
+                                        setEditingAthleteData({ ...ath });
+                                      }}
+                                      className="text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 rounded px-2.5 py-0.5 transition text-[10px] font-semibold cursor-pointer"
+                                    >
+                                      수정
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        showConfirm(
+                                          '선수 등록 정보 영구 삭제',
+                                          `선수 ${ath.name}(${ath.regNumber})의 공인 협회 등록 정보를 시스템에서 영구히 삭제하시겠습니까?`,
+                                          () => handleDeleteAthleteFromAdmin(ath.id)
+                                        );
+                                      }}
+                                      className="text-red-500 hover:text-white hover:bg-red-500 border border-red-200 rounded px-2.5 py-0.5 transition text-[10px] font-semibold cursor-pointer"
+                                    >
+                                      삭제
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                           {athletes.length === 0 && (
                             <tr>
-                              <td colSpan={7} className="px-4 py-8 text-center text-zinc-400">
+                              <td colSpan={8} className="px-4 py-8 text-center text-zinc-400">
                                 등록된 공인 선수가 없습니다. 새 선수를 등록해 주세요.
                               </td>
                             </tr>
@@ -3128,13 +4380,62 @@ export default function App() {
                         </div>
 
                         <div className="space-y-1">
-                          <label className="text-[10px] text-zinc-500 font-semibold block">이미지 URL (Unsplash 등)</label>
-                          <input
-                            type="text"
-                            value={adminEditingComp.imageUrl || ''}
-                            onChange={(e) => setAdminEditingComp({ ...adminEditingComp, imageUrl: e.target.value })}
-                            className="w-full bg-white border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900"
-                          />
+                          <label className="text-[10px] text-zinc-500 font-semibold block">대회 대표 이미지 설정 (수정, 변경 및 삭제 가능)</label>
+                          <div className="flex flex-col sm:flex-row gap-3">
+                            <input
+                              type="text"
+                              placeholder="https://images.unsplash.com/... 또는 직접 파일 업로드"
+                              value={adminEditingComp.imageUrl || ''}
+                              onChange={(e) => setAdminEditingComp({ ...adminEditingComp, imageUrl: e.target.value })}
+                              className="flex-1 bg-white border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900"
+                            />
+                            <div className="flex gap-2">
+                              <label className="bg-zinc-200 hover:bg-zinc-300 text-zinc-700 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1 shrink-0">
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>기기에서 업로드</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        setAdminEditingComp({ ...adminEditingComp, imageUrl: reader.result as string });
+                                        showToast('대회 이미지가 새로운 파일로 교체되었습니다.', 'success');
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                />
+                              </label>
+                              {adminEditingComp.imageUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAdminEditingComp({ ...adminEditingComp, imageUrl: '' });
+                                    showToast('대회 이미지가 영구 삭제 처리되었습니다. (대체 기본 이미지가 표시됩니다)', 'info');
+                                  }}
+                                  className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1 shrink-0 cursor-pointer"
+                                >
+                                  삭제
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {adminEditingComp.imageUrl ? (
+                            <div className="mt-2 w-32 h-20 rounded-lg overflow-hidden border border-zinc-200 bg-zinc-50 relative group">
+                              <img src={adminEditingComp.imageUrl} alt="Current Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[9px] font-bold">
+                                현재 대표 이미지
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-2 text-[10px] text-amber-600 font-medium">
+                              ⚠️ 대표 이미지가 비어 있습니다. 기본 이미지로 자동 대체되거나 로고 형태로 대체됩니다.
+                            </div>
+                          )}
                         </div>
 
                         <div className="space-y-1">
@@ -3372,16 +4673,16 @@ export default function App() {
                           )}
                         </AnimatePresence>
 
-                        <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-                          <table className="w-full text-xs text-left text-zinc-600">
+                        <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-sm overflow-x-auto">
+                          <table className="w-full text-xs text-left text-zinc-600 min-w-[750px]">
                             <thead className="bg-zinc-50 border-b border-zinc-200 text-zinc-900 uppercase font-bold text-[11px]">
                               <tr>
-                                <th className="px-4 py-3">구분</th>
-                                <th className="px-4 py-3">미리보기</th>
-                                <th className="px-4 py-3">대회명</th>
-                                <th className="px-4 py-3">개최일</th>
-                                <th className="px-4 py-3">조회수</th>
-                                <th className="px-4 py-3 text-right">관리 조작</th>
+                                <th className="px-4 py-3 whitespace-nowrap">구분</th>
+                                <th className="px-4 py-3 whitespace-nowrap">미리보기</th>
+                                <th className="px-4 py-3 whitespace-nowrap">대회명</th>
+                                <th className="px-4 py-3 whitespace-nowrap">개최일</th>
+                                <th className="px-4 py-3 whitespace-nowrap">조회수</th>
+                                <th className="px-4 py-3 text-right whitespace-nowrap">관리 조작</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-100">

@@ -104,7 +104,7 @@ export default function AthleteLookup({
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="예: 김민준 또는 KCF-2026-0101"
+                  placeholder="예: ooo 또는 KCF-2026-0101"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl pl-4 pr-10 py-3.5 text-xs text-zinc-800 focus:outline-none focus:border-zinc-900 focus:bg-white font-medium transition"
@@ -276,11 +276,22 @@ export default function AthleteLookup({
                     {/* Athlete Photo Area */}
                     <div className="col-span-4 flex flex-col items-center">
                       <div className="w-24 h-28 rounded-2xl bg-gradient-to-b from-zinc-800 to-zinc-900 border-2 border-white/15 overflow-hidden flex flex-col items-center justify-center relative shadow-inner group">
-                        {/* Avatar representation based on gender */}
-                        <div className="w-12 h-12 rounded-full bg-zinc-700/60 border border-white/10 flex items-center justify-center text-zinc-300">
-                          <User className="w-6 h-6" />
-                        </div>
-                        <span className="text-[9px] text-zinc-400 font-bold mt-2 tracking-wider">KCF ATHLETE</span>
+                        {selectedAthlete.imageUrl ? (
+                          <img
+                            src={selectedAthlete.imageUrl}
+                            alt={selectedAthlete.name}
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <>
+                            {/* Avatar representation based on gender */}
+                            <div className="w-12 h-12 rounded-full bg-zinc-700/60 border border-white/10 flex items-center justify-center text-zinc-300">
+                              <User className="w-6 h-6" />
+                            </div>
+                            <span className="text-[9px] text-zinc-400 font-bold mt-2 tracking-wider">KCF ATHLETE</span>
+                          </>
+                        )}
                         
                         {/* Status bar overlays on bottom of photo */}
                         <div className="absolute bottom-0 inset-x-0 bg-amber-400/90 text-zinc-900 text-[8px] font-black text-center py-0.5 uppercase tracking-widest shadow">

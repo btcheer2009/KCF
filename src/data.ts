@@ -116,10 +116,19 @@ export const EVENTS: KCFEvent[] = [
     id: 'event-1',
     title: '제15회 삼척 전국 치어리딩 페스티벌',
     date: '2026-08-21 ~ 2026-08-23',
-    type: 'competition',
+    type: 'domestic',
     location: '삼척해수욕장 야외 야외특설무대',
     status: 'upcoming',
     description: '바다와 치어리딩의 축제! 전 종목 야외 비치 페스티벌.'
+  },
+  {
+    id: 'event-5',
+    title: '2026 ICU 아시아 치어리딩 오픈',
+    date: '2026-11-27 ~ 2026-11-29',
+    type: 'international',
+    location: '일본 도쿄 요요기 국립경기장',
+    status: 'upcoming',
+    description: '아시아 각국의 최정상급 치어리딩 팀들이 모이는 공식 국제대회.'
   },
   {
     id: 'event-2',
@@ -217,7 +226,7 @@ export const SAFETY_RULES: SafetyRule[] = [
 export const INITIAL_ATHLETES: Athlete[] = [
   {
     id: 'athlete-1',
-    name: '김민준',
+    name: 'ooo',
     regNumber: 'KCF-2026-0101',
     birthDate: '2005-08-14',
     gender: '남',

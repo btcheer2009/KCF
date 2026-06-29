@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { CheerTeam } from '../types';
+import { CheerTeam, InquirySubmission } from '../types';
 import { 
   Users, MapPin, Calendar, Phone, Search, Plus, X, Award, ShieldCheck, CheckCircle2, Trophy, Trash2
 } from 'lucide-react';
@@ -13,21 +13,35 @@ import { motion, AnimatePresence } from 'motion/react';
 interface TeamRegistryProps {
   teams: CheerTeam[];
   setTeams: React.Dispatch<React.SetStateAction<CheerTeam[]>>;
+  inquiries?: InquirySubmission[];
+  setInquiries?: React.Dispatch<React.SetStateAction<InquirySubmission[]>>;
+  teamCategories?: { id: string; label: string }[];
+  teamRegions?: string[];
   isAdminMode: boolean;
   showConfirm?: (title: string, message: string, onConfirm: () => void) => void;
   headerBadge?: string;
   headerTitle?: string;
   headerDesc?: string;
+  showToast?: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
 export default function TeamRegistry({ 
   teams, 
   setTeams, 
+  inquiries = [],
+  setInquiries,
+  teamCategories = [
+    { id: 'allstar', label: '올스타 (All-Star)' },
+    { id: 'university', label: '대학부 (University)' },
+    { id: 'club', label: '일반클럽 (Club)' }
+  ],
+  teamRegions = ['서울', '경기', '부산', '대구', '강원', '인천', '충청', '전라'],
   isAdminMode, 
   showConfirm,
   headerBadge = 'KCF REGISTERED CLUBS',
   headerTitle = '전국 지부별 공인 등록팀 및 아카데미 현황',
-  headerDesc = '한국치어리딩협회(KCF)에 정식 가입 및 인가되어 활동하고 있는 소속 클럽, 학교 스포츠클럽 및 전문 교육 아카데미의 공식 명단입니다.'
+  headerDesc = '한국치어리딩협회(KCF)에 정식 가입 및 인가되어 활동하고 있는 소속 클럽, 학교 스포츠클럽 및 전문 교육 아카데미의 공식 명단입니다.',
+  showToast
 }: TeamRegistryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -37,8 +51,8 @@ export default function TeamRegistry({
 
   // New Team Form States
   const [regName, setRegName] = useState('');
-  const [regCategory, setRegCategory] = useState<CheerTeam['category']>('club');
-  const [regRegion, setRegRegion] = useState('서울');
+  const [regCategory, setRegCategory] = useState<string>(() => teamCategories[0]?.id || 'club');
+  const [regRegion, setRegRegion] = useState<string>(() => teamRegions[0] || '서울');
   const [regMemberCount, setRegMemberCount] = useState<number>(15);
   const [regCoach, setRegCoach] = useState('');
   const [regDescription, setRegDescription] = useState('');
@@ -53,20 +67,33 @@ export default function TeamRegistry({
     e.preventDefault();
     if (!regName.trim() || !regCoach.trim() || !regContact.trim()) return;
 
-    const newTeam: CheerTeam = {
-      id: `team-${Date.now()}`,
-      name: regName,
-      category: regCategory,
-      region: regRegion,
-      memberCount: Number(regMemberCount),
-      coach: regCoach,
-      established: new Date().toISOString().split('T')[0],
-      description: regDescription || '협회 가입이 승인된 신생 치어리딩 팀입니다.',
+    // Create an InquirySubmission of type 'team_reg' containing the team registration data
+    const newInquiry: InquirySubmission = {
+      id: `inq-team-${Date.now()}`,
+      name: regCoach,
       contact: regContact,
+      email: `${regName.replace(/\s+/g, '').toLowerCase()}@kcf-pending.org`,
+      type: 'team_reg',
+      subject: `[신규 팀 가입 신청] ${regName} (${regRegion}지부)`,
+      message: JSON.stringify({
+        name: regName,
+        category: regCategory,
+        region: regRegion,
+        memberCount: Number(regMemberCount),
+        coach: regCoach,
+        description: regDescription || '협회 가입이 승인된 신생 치어리딩 팀입니다.',
+        contact: regContact,
+        established: new Date().toISOString().split('T')[0]
+      }),
+      date: new Date().toISOString().split('T')[0],
+      status: 'received'
     };
 
-    const updated = [...teams, newTeam];
-    saveTeams(updated);
+    if (setInquiries && inquiries) {
+      const updated = [newInquiry, ...inquiries];
+      setInquiries(updated);
+      localStorage.setItem('kcf_inquiries', JSON.stringify(updated));
+    }
 
     // Reset Form & Show success
     setRegName('');
@@ -76,10 +103,14 @@ export default function TeamRegistry({
     setRegMemberCount(15);
     setShowRegModal(false);
 
-    setShowSuccessToast(true);
-    setTimeout(() => {
-      setShowSuccessToast(false);
-    }, 4000);
+    if (showToast) {
+      showToast('신규 팀 가입 신청이 제출되었습니다. [관리자 메뉴 > 문의/상담 신청 관리]에서 검토 후 정식 승인됩니다.', 'success');
+    } else {
+      setShowSuccessToast(true);
+      setTimeout(() => {
+        setShowSuccessToast(false);
+      }, 4000);
+    }
   };
 
   const handleDeleteTeam = (id: string, e: React.MouseEvent) => {
@@ -101,7 +132,7 @@ export default function TeamRegistry({
   };
 
   // Regions lists
-  const availableRegions = ['all', '서울', '경기', '부산', '대구', '강원', '인천'];
+  const availableRegions = ['all', ...teamRegions];
 
   // Filter teams
   const filteredTeams = teams.filter(t => {
@@ -113,19 +144,17 @@ export default function TeamRegistry({
     return matchesSearch && matchesCategory && matchesRegion;
   });
 
-  const getCategoryLabel = (cat: CheerTeam['category']) => {
-    switch (cat) {
-      case 'allstar': return '올스타 (All-Star)';
-      case 'university': return '대학부 (University)';
-      default: return '일반클럽 (Club)';
-    }
+  const getCategoryLabel = (cat: string) => {
+    const found = teamCategories.find(c => c.id === cat);
+    return found ? found.label : cat;
   };
 
-  const getCategoryTheme = (cat: CheerTeam['category']) => {
+  const getCategoryTheme = (cat: string) => {
     switch (cat) {
       case 'allstar': return 'text-blue-700 border-blue-200 bg-blue-50';
       case 'university': return 'text-indigo-700 border-indigo-200 bg-indigo-50';
-      default: return 'text-emerald-700 border-emerald-200 bg-emerald-50';
+      case 'club': return 'text-emerald-700 border-emerald-200 bg-emerald-50';
+      default: return 'text-zinc-700 border-zinc-200 bg-zinc-50';
     }
   };
 
@@ -180,7 +209,7 @@ export default function TeamRegistry({
         <div>
           <span className="text-xs text-zinc-400 block mb-3 font-semibold">종목 분류 필터</span>
           <div className="flex flex-wrap gap-1.5 p-1 bg-zinc-100 rounded-2xl w-max">
-            {['all', 'allstar', 'university', 'club'].map((cat) => (
+            {['all', ...teamCategories.map(c => c.id)].map((cat) => (
               <button
                 id={`filter-team-${cat}`}
                 key={cat}
@@ -191,7 +220,7 @@ export default function TeamRegistry({
                     : 'text-zinc-500 hover:text-zinc-900 bg-transparent'
                 }`}
               >
-                {cat === 'all' ? '전체 종목' : getCategoryLabel(cat as CheerTeam['category'])}
+                {cat === 'all' ? '전체 종목' : getCategoryLabel(cat)}
               </button>
             ))}
           </div>
@@ -422,12 +451,12 @@ export default function TeamRegistry({
                     <select
                       id="reg-team-category"
                       value={regCategory}
-                      onChange={(e) => setRegCategory(e.target.value as CheerTeam['category'])}
+                      onChange={(e) => setRegCategory(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-800 focus:outline-none focus:border-blue-700"
                     >
-                      <option value="allstar">올스타 (All-Star)</option>
-                      <option value="university">대학부 (University)</option>
-                      <option value="club">일반클럽 (Club)</option>
+                      {teamCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.label}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -439,7 +468,7 @@ export default function TeamRegistry({
                       onChange={(e) => setRegRegion(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-800 focus:outline-none focus:border-blue-700"
                     >
-                      {['서울', '경기', '부산', '대구', '강원', '인천', '충청', '전라'].map(r => (
+                      {teamRegions.map(r => (
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>

@@ -16,7 +16,7 @@ export interface Notice {
 export interface CheerTeam {
   id: string;
   name: string;
-  category: 'allstar' | 'university' | 'club';
+  category: string;
   region: string;
   memberCount: number;
   coach: string;
@@ -29,7 +29,7 @@ export interface KCFEvent {
   id: string;
   title: string;
   date: string;
-  type: 'competition' | 'education' | 'selection' | 'seminar';
+  type: string;
   location: string;
   status: 'upcoming' | 'ongoing' | 'completed';
   description: string;
@@ -69,6 +69,7 @@ export interface Athlete {
   registerDate: string;
   validUntil: string;
   status: '정상등록' | '갱신필요' | '정지';
+  imageUrl?: string;
 }
 
 export interface AssociationInfo {

@@ -263,14 +263,14 @@ export default function CompetitionBoard({
             <table className="hidden md:table w-full border-collapse text-left text-xs md:text-sm">
               <thead>
                 <tr className="border-t-2 border-b border-zinc-900 text-zinc-800 font-bold bg-zinc-50/70 text-center">
-                  <th className="py-4 px-3 w-24 text-center">구분</th>
-                  <th className="py-4 px-3 w-28 text-center">포스터</th>
-                  <th className="py-4 px-4 text-left">대회명 / 요강</th>
-                  <th className="py-4 px-3 w-40 text-center">대회 일시</th>
-                  <th className="py-4 px-3 w-36 text-center">개최 장소</th>
-                  <th className="py-4 px-3 w-32 text-center">주관</th>
-                  <th className="py-4 px-3 w-16 text-center">조회</th>
-                  {isAdminMode && <th className="py-4 px-3 w-24 text-center">관리</th>}
+                  <th className="py-4 px-3 w-24 text-center whitespace-nowrap">구분</th>
+                  <th className="py-4 px-3 w-28 text-center whitespace-nowrap">포스터</th>
+                  <th className="py-4 px-4 text-left whitespace-nowrap">대회명 / 요강</th>
+                  <th className="py-4 px-3 w-40 text-center whitespace-nowrap">대회 일시</th>
+                  <th className="py-4 px-3 w-36 text-center whitespace-nowrap">개최 장소</th>
+                  <th className="py-4 px-3 w-32 text-center whitespace-nowrap">주관</th>
+                  <th className="py-4 px-3 w-16 text-center whitespace-nowrap">조회</th>
+                  {isAdminMode && <th className="py-4 px-3 w-24 text-center whitespace-nowrap">관리</th>}
                 </tr>
               </thead>
               <tbody>
@@ -281,7 +281,7 @@ export default function CompetitionBoard({
                     onClick={() => handleViewPost(post)}
                     className="border-b border-zinc-150 bg-white hover:bg-zinc-50 transition-colors duration-200 cursor-pointer text-center"
                   >
-                    <td className="py-4 px-3 text-center">
+                    <td className="py-4 px-3 text-center whitespace-nowrap">
                       <span className={`text-[9px] font-black tracking-wide px-2 py-1 rounded uppercase ${
                         post.category === 'domestic'
                           ? 'bg-blue-50 text-blue-700 border border-blue-100'
@@ -308,7 +308,7 @@ export default function CompetitionBoard({
                         {post.content}
                       </p>
                     </td>
-                    <td className="py-4 px-3 text-center text-xs font-semibold text-zinc-700 font-mono">
+                    <td className="py-4 px-3 text-center text-xs font-semibold text-zinc-700 font-mono whitespace-nowrap">
                       {post.compDate || post.date}
                     </td>
                     <td className="py-4 px-3 text-center text-xs text-zinc-600 truncate max-w-[120px]">
@@ -317,7 +317,7 @@ export default function CompetitionBoard({
                     <td className="py-4 px-3 text-center text-xs text-zinc-500 truncate max-w-[110px]">
                       {post.organizer || 'KCF'}
                     </td>
-                    <td className="py-4 px-3 text-center text-xs text-zinc-400 font-mono">
+                    <td className="py-4 px-3 text-center text-xs text-zinc-400 font-mono whitespace-nowrap">
                       {post.views}
                     </td>
                     {isAdminMode && (
