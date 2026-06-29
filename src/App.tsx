@@ -310,7 +310,12 @@ export default function App() {
     const savedNotices = localStorage.getItem('kcf_notices');
     if (savedNotices) {
       try {
-        setNotices(JSON.parse(savedNotices));
+        const parsed = JSON.parse(savedNotices);
+        if (Array.isArray(parsed)) {
+          setNotices(parsed);
+        } else {
+          setNotices(INITIAL_NOTICES);
+        }
       } catch (e) {
         setNotices(INITIAL_NOTICES);
       }
@@ -323,7 +328,12 @@ export default function App() {
     const savedTeams = localStorage.getItem('kcf_teams');
     if (savedTeams) {
       try {
-        setTeams(JSON.parse(savedTeams));
+        const parsed = JSON.parse(savedTeams);
+        if (Array.isArray(parsed)) {
+          setTeams(parsed);
+        } else {
+          setTeams(INITIAL_TEAMS);
+        }
       } catch (e) {
         setTeams(INITIAL_TEAMS);
       }
@@ -336,7 +346,12 @@ export default function App() {
     const savedInquiries = localStorage.getItem('kcf_inquiries');
     if (savedInquiries) {
       try {
-        setInquiries(JSON.parse(savedInquiries));
+        const parsed = JSON.parse(savedInquiries);
+        if (Array.isArray(parsed)) {
+          setInquiries(parsed);
+        } else {
+          setInquiries([]);
+        }
       } catch (e) {
         setInquiries([]);
       }
@@ -349,9 +364,13 @@ export default function App() {
     if (savedEvents) {
       try {
         const parsed = JSON.parse(savedEvents);
-        const migrated = parsed.map((e: any) => e.type === 'competition' ? { ...e, type: 'domestic' } : e);
-        setEvents(migrated);
-        localStorage.setItem('kcf_events', JSON.stringify(migrated));
+        if (Array.isArray(parsed)) {
+          const migrated = parsed.map((e: any) => e.type === 'competition' ? { ...e, type: 'domestic' } : e);
+          setEvents(migrated);
+          localStorage.setItem('kcf_events', JSON.stringify(migrated));
+        } else {
+          setEvents(EVENTS);
+        }
       } catch (e) {
         setEvents(EVENTS);
       }
@@ -364,7 +383,9 @@ export default function App() {
     const savedImages = localStorage.getItem('kcf_site_images');
     if (savedImages) {
       try {
-        setSiteImages(JSON.parse(savedImages));
+        const parsed = JSON.parse(savedImages);
+        const merged = { ...DEFAULT_IMAGES, ...parsed };
+        setSiteImages(merged);
       } catch (e) {
         setSiteImages(DEFAULT_IMAGES);
       }
@@ -386,9 +407,20 @@ export default function App() {
           !parsed.schedule.title
         )) {
           parsed.schedule.title = '한국치어리딩협회 일정';
-          localStorage.setItem('kcf_category_headers', JSON.stringify(parsed));
         }
-        setCategoryHeaders(parsed);
+        
+        // Defensive merging
+        const merged = {
+          schedule: { ...DEFAULT_CATEGORY_HEADERS.schedule, ...(parsed.schedule || {}) },
+          competitions: { ...DEFAULT_CATEGORY_HEADERS.competitions, ...(parsed.competitions || {}) },
+          teams: { ...DEFAULT_CATEGORY_HEADERS.teams, ...(parsed.teams || {}) },
+          athletes: { ...DEFAULT_CATEGORY_HEADERS.athletes, ...(parsed.athletes || {}) },
+          notice: { ...DEFAULT_CATEGORY_HEADERS.notice, ...(parsed.notice || {}) },
+          contact: { ...DEFAULT_CATEGORY_HEADERS.contact, ...(parsed.contact || {}) }
+        };
+        
+        localStorage.setItem('kcf_category_headers', JSON.stringify(merged));
+        setCategoryHeaders(merged);
       } catch (e) {
         setCategoryHeaders(DEFAULT_CATEGORY_HEADERS);
       }
@@ -400,7 +432,12 @@ export default function App() {
     const savedPromises = localStorage.getItem('kcf_core_promises');
     if (savedPromises) {
       try {
-        setCorePromises(JSON.parse(savedPromises));
+        const parsed = JSON.parse(savedPromises);
+        if (Array.isArray(parsed)) {
+          setCorePromises(parsed);
+        } else {
+          setCorePromises(DEFAULT_CORE_PROMISES);
+        }
       } catch (e) {
         setCorePromises(DEFAULT_CORE_PROMISES);
       }
@@ -412,19 +449,23 @@ export default function App() {
     const savedAthletes = localStorage.getItem('kcf_athletes');
     if (savedAthletes) {
       try {
-        const parsed = JSON.parse(savedAthletes) as Athlete[];
-        let migrated = false;
-        const updated = parsed.map(ath => {
-          if (ath.name === '김민준') {
-            migrated = true;
-            return { ...ath, name: 'ooo' };
+        const parsed = JSON.parse(savedAthletes);
+        if (Array.isArray(parsed)) {
+          let migrated = false;
+          const updated = parsed.map((ath: any) => {
+            if (ath.name === '김민준') {
+              migrated = true;
+              return { ...ath, name: 'ooo' };
+            }
+            return ath;
+          });
+          if (migrated) {
+            localStorage.setItem('kcf_athletes', JSON.stringify(updated));
           }
-          return ath;
-        });
-        if (migrated) {
-          localStorage.setItem('kcf_athletes', JSON.stringify(updated));
+          setAthletes(updated);
+        } else {
+          setAthletes(INITIAL_ATHLETES);
         }
-        setAthletes(updated);
       } catch (e) {
         setAthletes(INITIAL_ATHLETES);
       }
@@ -437,7 +478,12 @@ export default function App() {
     const savedComps = localStorage.getItem('kcf_competitions');
     if (savedComps) {
       try {
-        setCompetitions(JSON.parse(savedComps));
+        const parsed = JSON.parse(savedComps);
+        if (Array.isArray(parsed)) {
+          setCompetitions(parsed);
+        } else {
+          setCompetitions(INITIAL_COMPETITIONS);
+        }
       } catch (e) {
         setCompetitions(INITIAL_COMPETITIONS);
       }
@@ -459,15 +505,16 @@ export default function App() {
     if (savedAssocInfo) {
       try {
         const parsed = JSON.parse(savedAssocInfo);
-        setAssociationInfo(parsed);
-        setAssocOfficeName(parsed.officeName || '');
-        setAssocAddress(parsed.address || '');
-        setAssocPhone(parsed.phone || '');
-        setAssocFax(parsed.fax || '');
-        setAssocEmail(parsed.email || '');
-        setAssocPermitNumber(parsed.permitNumber || '');
-        setAssocBusinessNumber(parsed.businessNumber || '');
-        setAssocRepresentative(parsed.representative || '');
+        const merged = { ...INITIAL_ASSOCIATION_INFO, ...parsed };
+        setAssociationInfo(merged);
+        setAssocOfficeName(merged.officeName || '');
+        setAssocAddress(merged.address || '');
+        setAssocPhone(merged.phone || '');
+        setAssocFax(merged.fax || '');
+        setAssocEmail(merged.email || '');
+        setAssocPermitNumber(merged.permitNumber || '');
+        setAssocBusinessNumber(merged.businessNumber || '');
+        setAssocRepresentative(merged.representative || '');
       } catch (e) {
         setAssociationInfo(INITIAL_ASSOCIATION_INFO);
       }
