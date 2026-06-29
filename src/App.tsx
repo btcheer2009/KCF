@@ -603,15 +603,10 @@ export default function App() {
   };
 
   const handleDeleteTeamFromAdmin = (id: string) => {
-    showConfirm(
-      '단체 명부 제거',
-      '선택한 치어리딩 단체팀을 명부에서 제거하시겠습니까?',
-      () => {
-        const updated = teams.filter(t => t.id !== id);
-        setTeams(updated);
-        localStorage.setItem('kcf_teams', JSON.stringify(updated));
-      }
-    );
+    const updated = teams.filter(t => t.id !== id);
+    setTeams(updated);
+    localStorage.setItem('kcf_teams', JSON.stringify(updated));
+    showToast('선택한 단체 명부가 시스템에서 정상적으로 삭제되었습니다.', 'success');
   };
 
   const handleUpdateInquiryStatus = (id: string, nextStatus: InquirySubmission['status']) => {
@@ -703,6 +698,7 @@ export default function App() {
     const updated = teams.map(t => t.id === updatedTeam.id ? updatedTeam : t);
     setTeams(updated);
     localStorage.setItem('kcf_teams', JSON.stringify(updated));
+    showToast('단체 등록 정보가 성공적으로 수정되었습니다.', 'success');
   };
 
   const handleUpdateAthleteFromAdmin = (updatedAthlete: Athlete) => {
@@ -2577,7 +2573,7 @@ export default function App() {
                                       <button
                                         onClick={() => {
                                           if (!editData.name || !editData.region || !editData.coach) {
-                                            alert('팀명, 지부, 지도자명은 필수입니다.');
+                                            showToast('팀명, 지부, 지도자명은 필수 항목입니다.', 'error');
                                             return;
                                           }
                                           handleUpdateTeamFromAdmin(editData);
@@ -5131,7 +5127,12 @@ export default function App() {
                 className="space-y-4"
               >
                 <div className="space-y-1.5">
-                  <label className="block text-[11px] text-zinc-500 font-semibold">보안 비밀번호</label>
+                  <div className="flex justify-between items-center">
+                    <label className="block text-[11px] text-zinc-500 font-semibold">보안 비밀번호</label>
+                    <span className="text-[10px] text-zinc-400 font-medium">
+                      기본 비밀번호: <code className="bg-zinc-100 px-1 py-0.5 rounded text-blue-600 font-mono">bt2009</code>
+                    </span>
+                  </div>
                   <input
                     type="password"
                     required
