@@ -20,6 +20,8 @@ import CompetitionBoard from './components/CompetitionBoard';
 import ScheduleCalendar from './components/ScheduleCalendar';
 import { EVENTS, INITIAL_NOTICES, INITIAL_TEAMS, INITIAL_ATHLETES, INITIAL_ASSOCIATION_INFO, INITIAL_COMPETITIONS } from './data';
 import { Notice, CheerTeam, InquirySubmission, KCFEvent, Athlete, AssociationInfo, CompetitionPost } from './types';
+import { listenCollection, listenDoc, saveItem, deleteItem, saveDoc } from './lib/db';
+
 
 const DEFAULT_IMAGES = {
   heroBg: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=1200',
@@ -88,50 +90,170 @@ export default function App() {
   const [scheduleViewMode, setScheduleViewMode] = useState<'calendar' | 'list'>('calendar');
   
   // Shared States (Lifting state so Admin and components are in perfect sync!)
-  const [notices, setNotices] = useState<Notice[]>([]);
-  const [teams, setTeams] = useState<CheerTeam[]>([]);
-  const [inquiries, setInquiries] = useState<InquirySubmission[]>([]);
-  const [events, setEvents] = useState<KCFEvent[]>([]);
-  const [scheduleCategories, setScheduleCategories] = useState<{ id: string; label: string }[]>(() => {
-    const saved = localStorage.getItem('kcf_schedule_categories');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
+  const [notices, rawSetNotices] = useState<Notice[]>([]);
+  const [teams, rawSetTeams] = useState<CheerTeam[]>([]);
+  const [inquiries, rawSetInquiries] = useState<InquirySubmission[]>([]);
+  const [events, rawSetEvents] = useState<KCFEvent[]>([]);
+  const [scheduleCategories, rawSetScheduleCategories] = useState<{ id: string; label: string }[]>([
+    { id: 'domestic', label: '국내 대회' },
+    { id: 'international', label: '국제 대회' },
+    { id: 'education', label: '지도자 교육' },
+    { id: 'selection', label: '국가대표 선발' },
+    { id: 'seminar', label: '정기 세미나' }
+  ]);
+  const [teamCategories, rawSetTeamCategories] = useState<{ id: string; label: string }[]>([
+    { id: 'allstar', label: '올스타 치어 (Allstar)' },
+    { id: 'university', label: '대학 치어 동아리 (University)' },
+    { id: 'club', label: '클럽 치어 동단 (Club)' }
+  ]);
+  const [teamRegions, rawSetTeamRegions] = useState<string[]>(['서울', '경기', '부산', '대구', '강원', '인천', '충청', '전라']);
+  const [athletes, rawSetAthletes] = useState<Athlete[]>([]);
+  const [associationInfo, rawSetAssociationInfo] = useState<AssociationInfo>(INITIAL_ASSOCIATION_INFO);
+  const [competitions, rawSetCompetitions] = useState<CompetitionPost[]>([]);
+
+  // Helper function to sync array collections with Firestore
+  const syncCollectionToFirestore = async <T extends { id: string }>(
+    colName: string,
+    nextList: T[],
+    prevList: T[]
+  ) => {
+    try {
+      const prevMap = new Map(prevList.map(item => [item.id, item]));
+      
+      // Save added or modified items
+      for (const item of nextList) {
+        const prevItem = prevMap.get(item.id);
+        if (!prevItem || JSON.stringify(prevItem) !== JSON.stringify(item)) {
+          await saveItem(colName, item.id, item);
+        }
+      }
+
+      // Delete removed items
+      const nextSet = new Set(nextList.map(item => item.id));
+      for (const prevItem of prevList) {
+        if (!nextSet.has(prevItem.id)) {
+          await deleteItem(colName, prevItem.id);
+        }
+      }
+    } catch (e) {
+      console.error(`Error syncing collection ${colName}:`, e);
     }
-    return [
-      { id: 'domestic', label: '국내 대회' },
-      { id: 'international', label: '국제 대회' },
-      { id: 'education', label: '지도자 교육' },
-      { id: 'selection', label: '국가대표 선발' },
-      { id: 'seminar', label: '정기 세미나' }
-    ];
-  });
-  const [teamCategories, setTeamCategories] = useState<{ id: string; label: string }[]>(() => {
-    const saved = localStorage.getItem('kcf_team_categories');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [
-      { id: 'allstar', label: '올스타 치어 (Allstar)' },
-      { id: 'university', label: '대학 치어 동아리 (University)' },
-      { id: 'club', label: '클럽 치어 동단 (Club)' }
-    ];
-  });
-  const [teamRegions, setTeamRegions] = useState<string[]>(() => {
-    const saved = localStorage.getItem('kcf_team_regions');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return ['서울', '경기', '부산', '대구', '강원', '인천', '충청', '전라'];
-  });
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [associationInfo, setAssociationInfo] = useState<AssociationInfo>(INITIAL_ASSOCIATION_INFO);
-  const [competitions, setCompetitions] = useState<CompetitionPost[]>([]);
+  };
+
+  // Wrapped Sync Setters (exposed to child components and event handlers to sync automatically)
+  const setNotices = (action: React.SetStateAction<Notice[]>) => {
+    rawSetNotices((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      syncCollectionToFirestore('notices', next, prev);
+      return next;
+    });
+  };
+
+  const setTeams = (action: React.SetStateAction<CheerTeam[]>) => {
+    rawSetTeams((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      syncCollectionToFirestore('teams', next, prev);
+      return next;
+    });
+  };
+
+  const setInquiries = (action: React.SetStateAction<InquirySubmission[]>) => {
+    rawSetInquiries((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      syncCollectionToFirestore('inquiries', next, prev);
+      return next;
+    });
+  };
+
+  const setEvents = (action: React.SetStateAction<KCFEvent[]>) => {
+    rawSetEvents((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      syncCollectionToFirestore('events', next, prev);
+      return next;
+    });
+  };
+
+  const setAthletes = (action: React.SetStateAction<Athlete[]>) => {
+    rawSetAthletes((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      syncCollectionToFirestore('athletes', next, prev);
+      return next;
+    });
+  };
+
+  const setCompetitions = (action: React.SetStateAction<CompetitionPost[]>) => {
+    rawSetCompetitions((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      syncCollectionToFirestore('competitions', next, prev);
+      return next;
+    });
+  };
+
+  const setSiteImages = (action: React.SetStateAction<typeof DEFAULT_IMAGES>) => {
+    rawSetSiteImages((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      saveDoc('settings', 'site_images', next);
+      return next;
+    });
+  };
+
+  const setCategoryHeaders = (action: React.SetStateAction<typeof DEFAULT_CATEGORY_HEADERS>) => {
+    rawSetCategoryHeaders((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      saveDoc('settings', 'category_headers', next);
+      return next;
+    });
+  };
+
+  const setCorePromises = (action: React.SetStateAction<typeof DEFAULT_CORE_PROMISES>) => {
+    rawSetCorePromises((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      saveDoc('settings', 'core_promises', { list: next });
+      return next;
+    });
+  };
+
+  const setAdminPassword = (action: React.SetStateAction<string>) => {
+    rawSetAdminPassword((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      saveDoc('settings', 'admin_config', { password: next });
+      return next;
+    });
+  };
+
+  const setTeamCategories = (action: React.SetStateAction<{ id: string; label: string }[]>) => {
+    rawSetTeamCategories((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      saveDoc('settings', 'team_categories', { list: next });
+      return next;
+    });
+  };
+
+  const setTeamRegions = (action: React.SetStateAction<string[]>) => {
+    rawSetTeamRegions((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      saveDoc('settings', 'team_regions', { list: next });
+      return next;
+    });
+  };
+
+  const setScheduleCategories = (action: React.SetStateAction<{ id: string; label: string }[]>) => {
+    rawSetScheduleCategories((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      saveDoc('settings', 'schedule_categories', { list: next });
+      return next;
+    });
+  };
+
+  const setAssociationInfo = (action: React.SetStateAction<AssociationInfo>) => {
+    rawSetAssociationInfo((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      saveDoc('settings', 'association_info', next);
+      return next;
+    });
+  };
+
+
   const [currentTab, setCurrentTab] = useState<'home' | 'schedule' | 'competitions' | 'teams' | 'athletes' | 'notice' | 'contact'>('home');
 
   const handleTabChange = (tab: 'home' | 'schedule' | 'competitions' | 'teams' | 'athletes' | 'notice' | 'contact') => {
@@ -140,13 +262,13 @@ export default function App() {
   };
   
   // Site dynamic images
-  const [siteImages, setSiteImages] = useState<typeof DEFAULT_IMAGES>(DEFAULT_IMAGES);
+  const [siteImages, rawSetSiteImages] = useState<typeof DEFAULT_IMAGES>(DEFAULT_IMAGES);
  
   // Category dynamic headers (Editable by admin, unified centered design)
-  const [categoryHeaders, setCategoryHeaders] = useState<typeof DEFAULT_CATEGORY_HEADERS>(DEFAULT_CATEGORY_HEADERS);
+  const [categoryHeaders, rawSetCategoryHeaders] = useState<typeof DEFAULT_CATEGORY_HEADERS>(DEFAULT_CATEGORY_HEADERS);
  
   // Core three promises state (editable by manager)
-  const [corePromises, setCorePromises] = useState<typeof DEFAULT_CORE_PROMISES>(DEFAULT_CORE_PROMISES);
+  const [corePromises, rawSetCorePromises] = useState<typeof DEFAULT_CORE_PROMISES>(DEFAULT_CORE_PROMISES);
  
   // Admin Notice Form states
   const [showAddNoticeForm, setShowAddNoticeForm] = useState(false);
@@ -157,7 +279,7 @@ export default function App() {
   const [newNoticeIsImportant, setNewNoticeIsImportant] = useState(false);
 
   // Admin Security States
-  const [adminPassword, setAdminPassword] = useState('bt2009');
+  const [adminPassword, rawSetAdminPassword] = useState('bt2009');
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
@@ -304,232 +426,127 @@ export default function App() {
   const [teamCount, setTeamCount] = useState(120);
   const [coachCount, setCoachCount] = useState(300);
 
-  // Load state from LocalStorage on mount
+  // Load state from Firestore on mount
   useEffect(() => {
-    // Notices
-    const savedNotices = localStorage.getItem('kcf_notices');
-    if (savedNotices) {
-      try {
-        const parsed = JSON.parse(savedNotices);
-        if (Array.isArray(parsed)) {
-          setNotices(parsed);
-        } else {
-          setNotices(INITIAL_NOTICES);
-        }
-      } catch (e) {
-        setNotices(INITIAL_NOTICES);
-      }
-    } else {
-      setNotices(INITIAL_NOTICES);
-      localStorage.setItem('kcf_notices', JSON.stringify(INITIAL_NOTICES));
-    }
+    // 1. Notices
+    const unsubscribeNotices = listenCollection<Notice>('notices', (data) => {
+      const sorted = [...data].sort((a, b) => {
+        if (a.isImportant && !b.isImportant) return -1;
+        if (!a.isImportant && b.isImportant) return 1;
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      });
+      rawSetNotices(sorted);
+    }, INITIAL_NOTICES);
 
-    // Teams
-    const savedTeams = localStorage.getItem('kcf_teams');
-    if (savedTeams) {
-      try {
-        const parsed = JSON.parse(savedTeams);
-        if (Array.isArray(parsed)) {
-          setTeams(parsed);
-        } else {
-          setTeams(INITIAL_TEAMS);
-        }
-      } catch (e) {
-        setTeams(INITIAL_TEAMS);
-      }
-    } else {
-      setTeams(INITIAL_TEAMS);
-      localStorage.setItem('kcf_teams', JSON.stringify(INITIAL_TEAMS));
-    }
+    // 2. Teams
+    const unsubscribeTeams = listenCollection<CheerTeam>('teams', (data) => {
+      rawSetTeams(data);
+    }, INITIAL_TEAMS);
 
-    // Inquiries
-    const savedInquiries = localStorage.getItem('kcf_inquiries');
-    if (savedInquiries) {
-      try {
-        const parsed = JSON.parse(savedInquiries);
-        if (Array.isArray(parsed)) {
-          setInquiries(parsed);
-        } else {
-          setInquiries([]);
-        }
-      } catch (e) {
-        setInquiries([]);
-      }
-    } else {
-      setInquiries([]);
-    }
+    // 3. Inquiries
+    const unsubscribeInquiries = listenCollection<InquirySubmission>('inquiries', (data) => {
+      rawSetInquiries(data);
+    }, []);
 
-    // Events (Schedules)
-    const savedEvents = localStorage.getItem('kcf_events');
-    if (savedEvents) {
-      try {
-        const parsed = JSON.parse(savedEvents);
-        if (Array.isArray(parsed)) {
-          const migrated = parsed.map((e: any) => e.type === 'competition' ? { ...e, type: 'domestic' } : e);
-          setEvents(migrated);
-          localStorage.setItem('kcf_events', JSON.stringify(migrated));
-        } else {
-          setEvents(EVENTS);
-        }
-      } catch (e) {
-        setEvents(EVENTS);
-      }
-    } else {
-      setEvents(EVENTS);
-      localStorage.setItem('kcf_events', JSON.stringify(EVENTS));
-    }
+    // 4. Events
+    const unsubscribeEvents = listenCollection<KCFEvent>('events', (data) => {
+      rawSetEvents(data);
+    }, EVENTS);
 
-    // Site Dynamic Images
-    const savedImages = localStorage.getItem('kcf_site_images');
-    if (savedImages) {
-      try {
-        const parsed = JSON.parse(savedImages);
-        const merged = { ...DEFAULT_IMAGES, ...parsed };
-        setSiteImages(merged);
-      } catch (e) {
-        setSiteImages(DEFAULT_IMAGES);
-      }
-    } else {
-      localStorage.setItem('kcf_site_images', JSON.stringify(DEFAULT_IMAGES));
-    }
+    // 5. Athletes
+    const unsubscribeAthletes = listenCollection<Athlete>('athletes', (data) => {
+      rawSetAthletes(data);
+    }, INITIAL_ATHLETES);
 
-    // Category Dynamic Headers
-    const savedHeaders = localStorage.getItem('kcf_category_headers');
-    if (savedHeaders) {
-      try {
-        const parsed = JSON.parse(savedHeaders);
-        if (parsed.schedule && (
-          parsed.schedule.title === '2026 하반기 주요일정' ||
-          parsed.schedule.title === '2026 하반기 주요일정 안내' ||
-          parsed.schedule.title === '하반기 주요일정 안내' ||
-          parsed.schedule.title.includes('하반기') ||
-          parsed.schedule.title.includes('주요일정') ||
-          !parsed.schedule.title
-        )) {
-          parsed.schedule.title = '한국치어리딩협회 일정';
-        }
-        
-        // Defensive merging
-        const merged = {
-          schedule: { ...DEFAULT_CATEGORY_HEADERS.schedule, ...(parsed.schedule || {}) },
-          competitions: { ...DEFAULT_CATEGORY_HEADERS.competitions, ...(parsed.competitions || {}) },
-          teams: { ...DEFAULT_CATEGORY_HEADERS.teams, ...(parsed.teams || {}) },
-          athletes: { ...DEFAULT_CATEGORY_HEADERS.athletes, ...(parsed.athletes || {}) },
-          notice: { ...DEFAULT_CATEGORY_HEADERS.notice, ...(parsed.notice || {}) },
-          contact: { ...DEFAULT_CATEGORY_HEADERS.contact, ...(parsed.contact || {}) }
-        };
-        
-        localStorage.setItem('kcf_category_headers', JSON.stringify(merged));
-        setCategoryHeaders(merged);
-      } catch (e) {
-        setCategoryHeaders(DEFAULT_CATEGORY_HEADERS);
-      }
-    } else {
-      localStorage.setItem('kcf_category_headers', JSON.stringify(DEFAULT_CATEGORY_HEADERS));
-    }
+    // 6. Competitions
+    const unsubscribeCompetitions = listenCollection<CompetitionPost>('competitions', (data) => {
+      rawSetCompetitions(data);
+    }, INITIAL_COMPETITIONS);
 
-    // Core Promises
-    const savedPromises = localStorage.getItem('kcf_core_promises');
-    if (savedPromises) {
-      try {
-        const parsed = JSON.parse(savedPromises);
-        if (Array.isArray(parsed)) {
-          setCorePromises(parsed);
-        } else {
-          setCorePromises(DEFAULT_CORE_PROMISES);
-        }
-      } catch (e) {
-        setCorePromises(DEFAULT_CORE_PROMISES);
-      }
-    } else {
-      localStorage.setItem('kcf_core_promises', JSON.stringify(DEFAULT_CORE_PROMISES));
-    }
+    // 7. Site Images
+    const unsubscribeImages = listenDoc<typeof DEFAULT_IMAGES>('settings', 'site_images', (data) => {
+      rawSetSiteImages(data);
+    }, DEFAULT_IMAGES);
 
-    // Athletes
-    const savedAthletes = localStorage.getItem('kcf_athletes');
-    if (savedAthletes) {
-      try {
-        const parsed = JSON.parse(savedAthletes);
-        if (Array.isArray(parsed)) {
-          let migrated = false;
-          const updated = parsed.map((ath: any) => {
-            if (ath.name === '김민준') {
-              migrated = true;
-              return { ...ath, name: 'ooo' };
-            }
-            return ath;
-          });
-          if (migrated) {
-            localStorage.setItem('kcf_athletes', JSON.stringify(updated));
-          }
-          setAthletes(updated);
-        } else {
-          setAthletes(INITIAL_ATHLETES);
-        }
-      } catch (e) {
-        setAthletes(INITIAL_ATHLETES);
-      }
-    } else {
-      setAthletes(INITIAL_ATHLETES);
-      localStorage.setItem('kcf_athletes', JSON.stringify(INITIAL_ATHLETES));
-    }
+    // 8. Category Headers
+    const unsubscribeHeaders = listenDoc<typeof DEFAULT_CATEGORY_HEADERS>('settings', 'category_headers', (data) => {
+      rawSetCategoryHeaders(data);
+    }, DEFAULT_CATEGORY_HEADERS);
 
-    // Competitions
-    const savedComps = localStorage.getItem('kcf_competitions');
-    if (savedComps) {
-      try {
-        const parsed = JSON.parse(savedComps);
-        if (Array.isArray(parsed)) {
-          setCompetitions(parsed);
-        } else {
-          setCompetitions(INITIAL_COMPETITIONS);
-        }
-      } catch (e) {
-        setCompetitions(INITIAL_COMPETITIONS);
+    // 9. Core Promises
+    const unsubscribePromises = listenDoc<{ list: typeof DEFAULT_CORE_PROMISES }>('settings', 'core_promises', (data) => {
+      if (data && Array.isArray(data.list)) {
+        rawSetCorePromises(data.list);
       }
-    } else {
-      setCompetitions(INITIAL_COMPETITIONS);
-      localStorage.setItem('kcf_competitions', JSON.stringify(INITIAL_COMPETITIONS));
-    }
+    }, { list: DEFAULT_CORE_PROMISES });
 
-    // Admin Password
-    const savedPassword = localStorage.getItem('kcf_admin_password');
-    if (savedPassword) {
-      setAdminPassword(savedPassword);
-    } else {
-      localStorage.setItem('kcf_admin_password', 'bt2009');
-    }
+    // 10. Association Info
+    const unsubscribeAssoc = listenDoc<AssociationInfo>('settings', 'association_info', (data) => {
+      rawSetAssociationInfo(data);
+      setAssocOfficeName(data.officeName || '');
+      setAssocAddress(data.address || '');
+      setAssocPhone(data.phone || '');
+      setAssocFax(data.fax || '');
+      setAssocEmail(data.email || '');
+      setAssocPermitNumber(data.permitNumber || '');
+      setAssocBusinessNumber(data.businessNumber || '');
+      setAssocRepresentative(data.representative || '');
+    }, INITIAL_ASSOCIATION_INFO);
 
-    // Association Info
-    const savedAssocInfo = localStorage.getItem('kcf_association_info');
-    if (savedAssocInfo) {
-      try {
-        const parsed = JSON.parse(savedAssocInfo);
-        const merged = { ...INITIAL_ASSOCIATION_INFO, ...parsed };
-        setAssociationInfo(merged);
-        setAssocOfficeName(merged.officeName || '');
-        setAssocAddress(merged.address || '');
-        setAssocPhone(merged.phone || '');
-        setAssocFax(merged.fax || '');
-        setAssocEmail(merged.email || '');
-        setAssocPermitNumber(merged.permitNumber || '');
-        setAssocBusinessNumber(merged.businessNumber || '');
-        setAssocRepresentative(merged.representative || '');
-      } catch (e) {
-        setAssociationInfo(INITIAL_ASSOCIATION_INFO);
+    // 11. Admin Password
+    const unsubscribePassword = listenDoc<{ password: string }>('settings', 'admin_config', (data) => {
+      if (data && data.password) {
+        rawSetAdminPassword(data.password);
       }
-    } else {
-      setAssociationInfo(INITIAL_ASSOCIATION_INFO);
-      localStorage.setItem('kcf_association_info', JSON.stringify(INITIAL_ASSOCIATION_INFO));
-      setAssocOfficeName(INITIAL_ASSOCIATION_INFO.officeName);
-      setAssocAddress(INITIAL_ASSOCIATION_INFO.address);
-      setAssocPhone(INITIAL_ASSOCIATION_INFO.phone);
-      setAssocFax(INITIAL_ASSOCIATION_INFO.fax);
-      setAssocEmail(INITIAL_ASSOCIATION_INFO.email);
-      setAssocPermitNumber(INITIAL_ASSOCIATION_INFO.permitNumber);
-      setAssocBusinessNumber(INITIAL_ASSOCIATION_INFO.businessNumber);
-      setAssocRepresentative(INITIAL_ASSOCIATION_INFO.representative);
-    }
+    }, { password: 'bt2009' });
+
+    // 12. Team Categories
+    const unsubscribeTeamCategories = listenDoc<{ list: { id: string; label: string }[] }>('settings', 'team_categories', (data) => {
+      if (data && Array.isArray(data.list)) {
+        rawSetTeamCategories(data.list);
+      }
+    }, { list: [
+      { id: 'allstar', label: '올스타 치어 (Allstar)' },
+      { id: 'university', label: '대학 치어 동아리 (University)' },
+      { id: 'club', label: '클럽 치어 동단 (Club)' }
+    ] });
+
+    // 13. Team Regions
+    const unsubscribeTeamRegions = listenDoc<{ list: string[] }>('settings', 'team_regions', (data) => {
+      if (data && Array.isArray(data.list)) {
+        rawSetTeamRegions(data.list);
+      }
+    }, { list: ['서울', '경기', '부산', '대구', '강원', '인천', '충청', '전라'] });
+
+    // 14. Schedule Categories
+    const unsubscribeScheduleCategories = listenDoc<{ list: { id: string; label: string }[] }>('settings', 'schedule_categories', (data) => {
+      if (data && Array.isArray(data.list)) {
+        rawSetScheduleCategories(data.list);
+      }
+    }, { list: [
+      { id: 'domestic', label: '국내 대회' },
+      { id: 'international', label: '국제 대회' },
+      { id: 'education', label: '지도자 교육' },
+      { id: 'selection', label: '국가대표 선발' },
+      { id: 'seminar', label: '정기 세미나' }
+    ] });
+
+    return () => {
+      unsubscribeNotices();
+      unsubscribeTeams();
+      unsubscribeInquiries();
+      unsubscribeEvents();
+      unsubscribeAthletes();
+      unsubscribeCompetitions();
+      unsubscribeImages();
+      unsubscribeHeaders();
+      unsubscribePromises();
+      unsubscribeAssoc();
+      unsubscribePassword();
+      unsubscribeTeamCategories();
+      unsubscribeTeamRegions();
+      unsubscribeScheduleCategories();
+    };
   }, []);
 
   // Monitor scroll for header background
