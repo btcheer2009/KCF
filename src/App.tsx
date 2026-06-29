@@ -1681,6 +1681,10 @@ export default function App() {
               <p className="text-[10px] text-slate-500 mt-3">
                 본 웹사이트는 AI Studio Build 에이전트를 통해 개발된 KCF 안심 통합 가이드라인 인터랙티브 포털입니다.
               </p>
+              <div className="mt-2 inline-flex items-center gap-1.5 bg-blue-950/40 border border-blue-900/50 text-blue-400 text-[10px] px-2.5 py-1 rounded-full font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>실시간 데이터베이스 연결: Cloud Firestore Active</span>
+              </div>
             </div>
           </div>
         </div>

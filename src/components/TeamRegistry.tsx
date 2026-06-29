@@ -60,7 +60,6 @@ export default function TeamRegistry({
 
   const saveTeams = (updated: CheerTeam[]) => {
     setTeams(updated);
-    localStorage.setItem('kcf_teams', JSON.stringify(updated));
   };
 
   const handleRegisterTeam = (e: React.FormEvent) => {
@@ -92,7 +91,6 @@ export default function TeamRegistry({
     if (setInquiries && inquiries) {
       const updated = [newInquiry, ...inquiries];
       setInquiries(updated);
-      localStorage.setItem('kcf_inquiries', JSON.stringify(updated));
     }
 
     // Reset Form & Show success

@@ -63,7 +63,6 @@ export default function CompetitionBoard({
 
   const saveCompetitions = (updated: CompetitionPost[]) => {
     setCompetitions(updated);
-    localStorage.setItem('kcf_competitions', JSON.stringify(updated));
   };
 
   // Convert File to Base64

@@ -56,7 +56,6 @@ export default function InquiryHub({
 
     const updated = [newInquiry, ...inquiries];
     setInquiries(updated);
-    localStorage.setItem('kcf_inquiries', JSON.stringify(updated));
 
     // Reset Form
     setName('');
@@ -75,7 +74,6 @@ export default function InquiryHub({
   const handleClearHistory = () => {
     const doClear = () => {
       setInquiries([]);
-      localStorage.removeItem('kcf_inquiries');
     };
 
     if (showConfirm) {

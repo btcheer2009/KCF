@@ -35,7 +35,6 @@ export default function NoticeBoard({
   // Save helper
   const saveNotices = (updated: Notice[]) => {
     setNotices(updated);
-    localStorage.setItem('kcf_notices', JSON.stringify(updated));
   };
 
   const handleViewNotice = (notice: Notice) => {
